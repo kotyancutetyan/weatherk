@@ -173,42 +173,26 @@
       75% { transform: scaleX(-1) rotate(3deg) scale(1.02); }
     }
 
-    .music-toggle {
-      position: fixed;
-      left: 1.5rem;
-      bottom: 1.5rem;
-      z-index: 15;
-      width: 36px;
-      height: 36px;
-      border: 1px solid #333;
-      border-radius: 50%;
-      background: #0a0a0a;
+    .forecast-row {
+      margin-top: 0.6rem;
+      font-size: 11px;
       color: #555;
-      font-size: 16px;
-      cursor: pointer;
+      display: none;
+    }
+
+    .forecast-row.visible {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: color 0.2s, border-color 0.2s;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
 
-    .music-toggle:hover {
-      color: #888;
-      border-color: #444;
+    .forecast-row span {
+      color: #555;
     }
 
-    .music-toggle.playing {
-      color: #666;
-    }
   </style>
 </head>
 <body>
-  <audio id="bgMusic" loop>
-    <source src="music.mp3" type="audio/mpeg">
-  </audio>
-
-  <button class="music-toggle" id="musicToggle" type="button" title="музыка">♪</button>
-
   <div class="avatar-block">
     <div class="avatar-bubble" id="complimentBubble">Катюша, ты прекрасная!</div>
     <img class="avatar-img" src="avatar.png" alt="Нажми" id="avatarImg" title="Нажми">
@@ -221,12 +205,14 @@
   <div class="window">
     <input type="text" id="cityInput" placeholder="город" autocomplete="off">
     <div class="weather-line" id="weatherLine"></div>
+    <div class="forecast-row" id="forecastRow"></div>
     <div class="fav-row" id="favRow"></div>
   </div>
 
   <script>
     const API_KEY = 'ebb692a00f79b15842592cf42ecbd5fc';
     const API_URL = 'https://api.openweathermap.org/data/2.5/weather';
+    const FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
 
     const CLOUD_COLORS = ['#5a5a5a', '#6a6a6a', '#7a7a7a', '#8a8a8a', '#9a9a9a'];
     const RAIN_COLORS = ['#252d38', '#2e3845', '#384355', '#424d65', '#4a5675'];
@@ -483,8 +469,10 @@
     const weatherLine = document.getElementById('weatherLine');
     const cityInput = document.getElementById('cityInput');
     const favRow = document.getElementById('favRow');
+    const forecastRow = document.getElementById('forecastRow');
     const FAV_KEY = 'weatherFavorites';
     let lastCity = '';
+    let forecastData = null;
 
     resize();
     initParticles();
@@ -559,19 +547,65 @@
       return res.json();
     }
 
+    async function fetchForecast(params) {
+      const url = new URL(FORECAST_URL);
+      url.searchParams.set('appid', API_KEY);
+      url.searchParams.set('lang', 'ru');
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Ошибка');
+      }
+      return res.json();
+    }
+
+    function getTomorrowForecast(list) {
+      if (!list || list.length < 2) return null;
+      const firstDate = new Date(list[0].dt * 1000).toDateString();
+      for (const item of list) {
+        if (new Date(item.dt * 1000).toDateString() !== firstDate) {
+          return item;
+        }
+      }
+      return null;
+    }
+
+    function renderForecastRow() {
+      if (!forecastData || !forecastData.list.length) return;
+      const list = forecastData.list;
+      const in3h = list[1];
+      const in6h = list[2];
+      const tomorrow = getTomorrowForecast(list);
+
+      let html = '';
+      if (in3h) html += `<span>+3ч ${Math.round(in3h.main.temp - 273.15)}°</span>`;
+      if (in6h) html += `<span>+6ч ${Math.round(in6h.main.temp - 273.15)}°</span>`;
+      if (tomorrow) html += `<span>завтра ${Math.round(tomorrow.main.temp - 273.15)}°</span>`;
+
+      forecastRow.innerHTML = html;
+      forecastRow.classList.add('visible');
+    }
+
     async function search() {
       const city = cityInput.value.trim();
       if (!city) return;
 
       setWeather('loading', '...');
       setScene('default');
+      forecastRow.classList.remove('visible');
 
       try {
-        const data = await fetchWeather({ q: city });
-        const cond = getCondition(data.weather[0]);
-        lastCity = data.name;
-        setWeather('', `${data.name} · ${Math.round(data.main.temp - 273.15)}°C · ${data.weather[0].description}`);
+        const data = await fetchForecast({ q: city });
+        forecastData = data;
+        lastCity = data.city.name;
+
+        const now = data.list[0];
+        const cond = getCondition(now.weather[0]);
+        const temp = Math.round(now.main.temp - 273.15);
+        setWeather('', `${data.city.name} · ${temp}°C · ${now.weather[0].description}`);
         setScene(cond);
+        renderForecastRow();
         renderFavorites();
       } catch (e) {
         setWeather('error', e.message || 'Не найдено');
@@ -610,20 +644,6 @@
     }
 
     avatarImg.addEventListener('click', nextCompliment);
-
-    const bgMusic = document.getElementById('bgMusic');
-    const musicToggle = document.getElementById('musicToggle');
-    musicToggle.addEventListener('click', () => {
-      if (bgMusic.paused) {
-        bgMusic.play().catch(() => {});
-        musicToggle.textContent = '♫';
-        musicToggle.classList.add('playing');
-      } else {
-        bgMusic.pause();
-        musicToggle.textContent = '♪';
-        musicToggle.classList.remove('playing');
-      }
-    });
   </script>
 </body>
 </html>
