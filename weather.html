@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Погода</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #1a1a1a;
+    }
+
+    .ascii-bg-wrap {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      user-select: none;
+      pointer-events: none;
+      background: #1a1a1a;
+    }
+
+    .ascii-bg-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      opacity: 0.7;
+    }
+
+    .window {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #0a0a0a;
+      border: 1px solid #333;
+      padding: 1.25rem 1.5rem;
+      min-width: 280px;
+      z-index: 10;
+    }
+
+    .window input {
+      font-family: inherit;
+      font-size: 13px;
+      width: 100%;
+      padding: 0.4rem 0;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #333;
+      color: #ccc;
+      outline: none;
+    }
+
+    .window input::placeholder { color: #555; }
+
+    .weather-line {
+      margin-top: 1rem;
+      font-size: 12px;
+      color: #888;
+      min-height: 1.2em;
+    }
+
+    .weather-line.error { color: #666; }
+    .weather-line.loading { color: #555; }
+
+    .fav-row {
+      margin-top: 0.8rem;
+      font-size: 11px;
+      color: #555;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .fav-row .fav-label {
+      margin-right: 0.2rem;
+    }
+
+    .fav-chip {
+      cursor: pointer;
+      padding: 0.15rem 0.4rem;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+      color: #666;
+    }
+
+    .fav-chip:hover {
+      color: #888;
+      border-color: #444;
+    }
+
+    .fav-add {
+      cursor: pointer;
+      color: #444;
+      padding: 0.15rem 0.3rem;
+      font-size: 10px;
+    }
+
+    .fav-add:hover {
+      color: #888;
+    }
+
+    .fav-chip .fav-remove {
+      margin-left: 0.25rem;
+      opacity: 0;
+      color: #555;
+    }
+
+    .fav-chip:hover .fav-remove {
+      opacity: 1;
+    }
+
+    .fav-chip .fav-remove:hover {
+      color: #888;
+    }
+
+    .avatar-block {
+      position: fixed;
+      right: 1.5rem;
+      bottom: 1.5rem;
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .avatar-bubble {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      padding: 0.6rem 0.9rem;
+      font-size: 12px;
+      color: #888;
+      max-width: 200px;
+      border-radius: 8px;
+      position: relative;
+      opacity: 0.9;
+    }
+
+    .avatar-bubble::after {
+      content: '';
+      position: absolute;
+      right: 20px;
+      bottom: -6px;
+      border: 6px solid transparent;
+      border-top-color: #333;
+      border-left-color: #333;
+    }
+
+    .avatar-img {
+      width: 168px;
+      height: 168px;
+      object-fit: contain;
+      transform: scaleX(-1);
+      animation: avatar-dance 2s ease-in-out infinite;
+      cursor: pointer;
+    }
+
+    .avatar-img:hover {
+      opacity: 0.9;
+    }
+
+    @keyframes avatar-dance {
+      0%, 100% { transform: scaleX(-1) rotate(-3deg) scale(1); }
+      25% { transform: scaleX(-1) rotate(2deg) scale(1.02); }
+      50% { transform: scaleX(-1) rotate(-2deg) scale(1); }
+      75% { transform: scaleX(-1) rotate(3deg) scale(1.02); }
+    }
+
+    .music-toggle {
+      position: fixed;
+      left: 1.5rem;
+      bottom: 1.5rem;
+      z-index: 15;
+      width: 36px;
+      height: 36px;
+      border: 1px solid #333;
+      border-radius: 50%;
+      background: #0a0a0a;
+      color: #555;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .music-toggle:hover {
+      color: #888;
+      border-color: #444;
+    }
+
+    .music-toggle.playing {
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <audio id="bgMusic" loop>
+    <source src="music.mp3" type="audio/mpeg">
+  </audio>
+
+  <button class="music-toggle" id="musicToggle" type="button" title="музыка">♪</button>
+
+  <div class="avatar-block">
+    <div class="avatar-bubble" id="complimentBubble">Катюша, ты прекрасная!</div>
+    <img class="avatar-img" src="avatar.png" alt="Нажми" id="avatarImg" title="Нажми">
+  </div>
+
+  <div class="ascii-bg-wrap">
+    <canvas id="asciiCanvas"></canvas>
+  </div>
+
+  <div class="window">
+    <input type="text" id="cityInput" placeholder="город" autocomplete="off">
+    <div class="weather-line" id="weatherLine"></div>
+    <div class="fav-row" id="favRow"></div>
+  </div>
+
+  <script>
+    const API_KEY = 'ebb692a00f79b15842592cf42ecbd5fc';
+    const API_URL = 'https://api.openweathermap.org/data/2.5/weather';
+
+    const CLOUD_COLORS = ['#5a5a5a', '#6a6a6a', '#7a7a7a', '#8a8a8a', '#9a9a9a'];
+    const RAIN_COLORS = ['#252d38', '#2e3845', '#384355', '#424d65', '#4a5675'];
+    const SUN_COLORS = ['#4a4835', '#555342', '#656350', '#75735e', '#85836a'];
+    const MIST_COLORS = ['#404040', '#505050', '#606060'];
+    const SNOW_COLORS = ['#555555', '#656565', '#757575'];
+    const GRASS_COLORS = ['#1a2e1a', '#253525', '#2d3d2d', '#354535'];
+    const GRASS_CHARS = ['|', '/', '\\', ',', "'", '`', '.', ';'];
+
+    const CHAR_W = 6;
+    const CHAR_H = 10;
+
+    const canvas = document.getElementById('asciiCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function rnd(n) { return Math.random() * n; }
+    function rndInt(n) { return Math.floor(rnd(n)); }
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.font = '9px "JetBrains Mono", Consolas, monospace';
+      ctx.textBaseline = 'top';
+    }
+
+    const cols = () => Math.ceil(window.innerWidth / CHAR_W) + 4;
+    const rows = () => Math.ceil(window.innerHeight / CHAR_H) + 4;
+
+    const sceneTypes = ['clouds', 'rain', 'snow', 'mist', 'stars'];
+    let sceneType = sceneTypes[rndInt(sceneTypes.length)];
+    let particles = [];
+    let frameCount = 0;
+
+    function createCloud(fill) {
+      const w = 6 + rndInt(8);
+      const h = 2 + rndInt(2);
+      const chars = ['.', "'", '~', '(', ')', '-', 'o', ','];
+      const shape = [];
+      for (let dy = 0; dy < h; dy++) {
+        let row = '';
+        for (let dx = 0; dx < w; dx++) {
+          const d = Math.abs(dx - w/2) / (w/2) + Math.abs(dy - h/2) / (h/2);
+          row += (rnd(1) > d * 0.6) ? chars[rndInt(chars.length)] : ' ';
+        }
+        shape.push(row);
+      }
+      const c = cols();
+      const r = rows();
+      return {
+        x: fill ? -w + rnd(c + w) : -w - rnd(c),
+        y: rnd(Math.max(1, r - h - 1)),
+        w, h, shape,
+        vx: 0.12 + rnd(0.06),
+        shade: CLOUD_COLORS[rndInt(CLOUD_COLORS.length)]
+      };
+    }
+
+    function createRainDrop(fill) {
+      const c = cols();
+      const r = rows();
+      return {
+        x: rnd(c),
+        y: fill ? -4 + rnd(r + 8) : -2 - rnd(4),
+        len: 1 + rndInt(3),
+        vy: 0.9 + rnd(0.5),
+        shade: RAIN_COLORS[rndInt(RAIN_COLORS.length)]
+      };
+    }
+
+    function createSnowFlake(fill) {
+      const c = cols();
+      const r = rows();
+      return {
+        x: rnd(c),
+        y: fill ? -2 + rnd(r + 4) : -1,
+        vy: 0.18 + rnd(0.12),
+        vx: (rnd(1) - 0.5) * 0.04,
+        shade: SNOW_COLORS[rndInt(SNOW_COLORS.length)],
+        ch: ['*', '.', '\u00B7', "'"][rndInt(4)]
+      };
+    }
+
+    function createStar() {
+      return {
+        x: rnd(cols()),
+        y: rnd(rows()),
+        twinkle: rnd(Math.PI * 2),
+        shade: SUN_COLORS[rndInt(SUN_COLORS.length)],
+        ch: ['.', '*', '+', "'", '\u00B0'][rndInt(5)]
+      };
+    }
+
+    function createMistBlob() {
+      const r = 3 + rndInt(4);
+      return {
+        x: rnd(cols() + 10) - 5,
+        y: rnd(rows() + 5) - 2,
+        r,
+        vx: 0.025 + rnd(0.02),
+        shade: MIST_COLORS[rndInt(MIST_COLORS.length)],
+        life: rnd(1)
+      };
+    }
+
+    function initParticles() {
+      particles = [];
+      const c = cols();
+      const r = rows();
+
+      if (sceneType === 'clouds') {
+        for (let i = 0; i < 12 + rndInt(4); i++) particles.push(createCloud(true));
+      } else if (sceneType === 'rain') {
+        for (let i = 0; i < 60 + rndInt(20); i++) particles.push(createRainDrop(true));
+      } else if (sceneType === 'snow') {
+        for (let i = 0; i < 85 + rndInt(25); i++) particles.push(createSnowFlake(true));
+      } else if (sceneType === 'stars') {
+        for (let i = 0; i < 110 + rndInt(40); i++) particles.push(createStar());
+      } else if (sceneType === 'mist') {
+        for (let i = 0; i < 20 + rndInt(10); i++) particles.push(createMistBlob());
+      }
+    }
+
+    function draw() {
+      const c = cols();
+      const r = rows();
+      const w = c * CHAR_W;
+      const h = r * CHAR_H;
+
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, Math.max(w, window.innerWidth) + 50, Math.max(h, window.innerHeight) + 50);
+
+      if (sceneType === 'clouds') {
+        particles.forEach(p => {
+          ctx.fillStyle = p.shade;
+          for (let dy = 0; dy < p.shape.length; dy++) {
+            for (let dx = 0; dx < p.shape[dy].length; dx++) {
+              const ch = p.shape[dy][dx];
+              if (ch !== ' ') {
+                ctx.fillText(ch, (p.x + dx) * CHAR_W, (p.y + dy + 1) * CHAR_H);
+              }
+            }
+          }
+        });
+      } else if (sceneType === 'rain') {
+        particles.forEach(p => {
+          ctx.fillStyle = p.shade;
+          for (let i = 0; i < p.len; i++) {
+            ctx.fillText(['|', "'", '|'][i % 3], p.x * CHAR_W, (p.y + i + 1) * CHAR_H);
+          }
+        });
+      } else if (sceneType === 'snow') {
+        particles.forEach(p => {
+          ctx.fillStyle = p.shade;
+          ctx.fillText(p.ch, p.x * CHAR_W, (p.y + 1) * CHAR_H);
+        });
+      } else if (sceneType === 'stars') {
+        particles.forEach(p => {
+          if (Math.sin(p.twinkle + frameCount * 0.02) > 0.2) {
+            ctx.fillStyle = p.shade;
+            ctx.fillText(p.ch, p.x * CHAR_W, (p.y + 1) * CHAR_H);
+          }
+        });
+      } else if (sceneType === 'mist') {
+        particles.forEach(p => {
+          ctx.fillStyle = p.shade;
+          for (let dy = -p.r; dy <= p.r; dy++) {
+            for (let dx = -p.r; dx <= p.r; dx++) {
+              if (dx*dx + dy*dy < p.r*p.r*(0.4 + p.life*0.4)) {
+                const h = ((dx + dy + frameCount*0.5) % 7 + 7) % 7;
+                if (h < 4) {
+                  ctx.fillText(['\u00B7', '.', '~', "'"][h], (p.x+dx)*CHAR_W, (p.y+dy+1)*CHAR_H);
+                }
+              }
+            }
+          }
+        });
+      }
+
+      const grassRows = 4;
+      for (let gy = Math.max(0, r - grassRows); gy < r; gy++) {
+        for (let gx = 0; gx < c; gx++) {
+          const h = ((gx * 7 + gy * 13 + 41) % 37 + 37) % 37;
+          if (h < 28) {
+            ctx.fillStyle = GRASS_COLORS[h % GRASS_COLORS.length];
+            ctx.fillText(GRASS_CHARS[h % GRASS_CHARS.length], gx * CHAR_W, (gy + 1) * CHAR_H);
+          }
+        }
+      }
+    }
+
+    function update() {
+      frameCount++;
+      const c = cols();
+      const r = rows();
+
+      if (sceneType === 'clouds') {
+        particles.forEach(p => {
+          p.x += p.vx;
+          if (p.x > c) Object.assign(p, createCloud());
+        });
+        if (frameCount % 40 === 0) particles.push(createCloud(false));
+      } else if (sceneType === 'rain') {
+        particles.forEach(p => {
+          p.y += p.vy;
+          if (p.y > r + 2) Object.assign(p, createRainDrop());
+        });
+      } else if (sceneType === 'snow') {
+        particles.forEach(p => {
+          p.y += p.vy;
+          p.x += p.vx;
+          if (p.y > r + 1) Object.assign(p, createSnowFlake());
+        });
+      } else if (sceneType === 'mist') {
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.life = (p.life + 0.003) % 1;
+          if (p.x > c + 5) Object.assign(p, createMistBlob());
+        });
+      }
+
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    const sceneByWeather = {
+      clear: 'stars',
+      clouds: 'clouds',
+      rain: 'rain',
+      snow: 'snow',
+      mist: 'mist',
+      thunder: 'clouds',
+      default: 'clouds'
+    };
+
+    function getCondition(weather) {
+      const id = weather.id;
+      if (id >= 200 && id < 300) return 'thunder';
+      if (id >= 600 && id < 700) return 'snow';
+      if ((id >= 500 && id < 600) || (id >= 300 && id < 400)) return 'rain';
+      if (id >= 700 && id < 800) return 'mist';
+      if (id === 800) return 'clear';
+      return 'default';
+    }
+
+    function setScene(type) {
+      sceneType = sceneByWeather[type] || 'clouds';
+      initParticles();
+    }
+
+    const weatherLine = document.getElementById('weatherLine');
+    const cityInput = document.getElementById('cityInput');
+    const favRow = document.getElementById('favRow');
+    const FAV_KEY = 'weatherFavorites';
+    let lastCity = '';
+
+    resize();
+    initParticles();
+    requestAnimationFrame(update);
+    renderFavorites();
+
+    window.addEventListener('resize', () => resize());
+
+    function getFavorites() {
+      try {
+        const s = localStorage.getItem(FAV_KEY);
+        return s ? JSON.parse(s) : [];
+      } catch { return []; }
+    }
+
+    function setFavorites(arr) {
+      localStorage.setItem(FAV_KEY, JSON.stringify(arr));
+      renderFavorites();
+    }
+
+    function addFavorite(city) {
+      const name = city.trim();
+      if (!name) return;
+      const fav = getFavorites();
+      if (!fav.includes(name)) {
+        setFavorites([...fav, name]);
+      }
+    }
+
+    function removeFavorite(city, e) {
+      e.stopPropagation();
+      setFavorites(getFavorites().filter(f => f !== city));
+    }
+
+    function renderFavorites() {
+      const fav = getFavorites();
+      let html = '';
+      if (fav.length) html += '<span class="fav-label">избранное:</span>';
+      fav.forEach(c => {
+        html += `<span class="fav-chip" data-city="${c.replace(/"/g, '&quot;')}">${c}<span class="fav-remove" title="удалить">×</span></span>`;
+      });
+      if (lastCity && !fav.includes(lastCity)) {
+        html += `<span class="fav-add" id="favAdd" title="добавить">+ ${lastCity}</span>`;
+      }
+      favRow.innerHTML = html || '';
+
+      favRow.querySelectorAll('.fav-chip').forEach(el => {
+        el.onclick = (e) => {
+          if (e.target.classList.contains('fav-remove')) { e.stopPropagation(); removeFavorite(el.dataset.city, e); return; }
+          cityInput.value = el.dataset.city;
+          search();
+        };
+      });
+      favRow.querySelector('#favAdd')?.addEventListener('click', () => addFavorite(lastCity));
+    }
+
+    function setWeather(cls, text) {
+      weatherLine.className = 'weather-line ' + cls;
+      weatherLine.textContent = text;
+    }
+
+    async function fetchWeather(params) {
+      const url = new URL(API_URL);
+      url.searchParams.set('appid', API_KEY);
+      url.searchParams.set('lang', 'ru');
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Ошибка');
+      }
+      return res.json();
+    }
+
+    async function search() {
+      const city = cityInput.value.trim();
+      if (!city) return;
+
+      setWeather('loading', '...');
+      setScene('default');
+
+      try {
+        const data = await fetchWeather({ q: city });
+        const cond = getCondition(data.weather[0]);
+        lastCity = data.name;
+        setWeather('', `${data.name} · ${Math.round(data.main.temp - 273.15)}°C · ${data.weather[0].description}`);
+        setScene(cond);
+        renderFavorites();
+      } catch (e) {
+        setWeather('error', e.message || 'Не найдено');
+      }
+    }
+
+    cityInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') search();
+    });
+
+    const compliments = [
+      'Катюша, ты прекрасная!',
+      'Катюша, ты свет моей жизни',
+      'Катюша, каждый день с тобой — подарок',
+      'Катюша, ты делаешь мир лучше',
+      'Катюша, твоя улыбка согревает',
+      'Катюша, я так тебя люблю',
+      'Катюша, ты моя муза',
+      'Катюша, с тобой я счастлив',
+      'Катюша, ты невероятная',
+      'Катюша, ты моя самая любимая',
+      'Катюша, ты волшебная',
+      'Катюша, ты лучше всех',
+      'Катюша, ты моё счастье',
+      'Катюша, такой, как ты, нет никого',
+      'Катюша, ты моё солнышко'
+    ];
+
+    const bubble = document.getElementById('complimentBubble');
+    const avatarImg = document.getElementById('avatarImg');
+    let idx = 0;
+
+    function nextCompliment() {
+      idx = (idx + 1) % compliments.length;
+      bubble.textContent = compliments[idx];
+    }
+
+    avatarImg.addEventListener('click', nextCompliment);
+
+    const bgMusic = document.getElementById('bgMusic');
+    const musicToggle = document.getElementById('musicToggle');
+    musicToggle.addEventListener('click', () => {
+      if (bgMusic.paused) {
+        bgMusic.play().catch(() => {});
+        musicToggle.textContent = '♫';
+        musicToggle.classList.add('playing');
+      } else {
+        bgMusic.pause();
+        musicToggle.textContent = '♪';
+        musicToggle.classList.remove('playing');
+      }
+    });
+  </script>
+</body>
+</html>
