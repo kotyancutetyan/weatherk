@@ -1116,6 +1116,11 @@
       avatarImg.blur();
     });
 
+    avatarImg.addEventListener('focus', () => {
+      // Если элемент всё-таки получил focus — сразу убираем, чтобы не показывать рамку.
+      avatarImg.blur();
+    });
+
     (function loadSavedCity() {
       try {
         const saved = localStorage.getItem(LAST_CITY_KEY);
