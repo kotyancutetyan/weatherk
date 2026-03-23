@@ -478,9 +478,9 @@
   <span id="themeToggle" class="theme-toggle" title="светлая тема" tabindex="-1">🌑</span>
 
   <div class="scene-buttons" id="sceneButtons" aria-hidden="false">
-    <span class="scene-btn" id="sceneBtnReset" title="сброс" tabindex="-1" draggable="false">⟲</span>
     <span class="scene-btn" id="sceneBtnRain" title="дождь" tabindex="-1" draggable="false">🌧️</span>
     <span class="scene-btn" id="sceneBtnSun" title="солнце" tabindex="-1" draggable="false">☀️</span>
+    <span class="scene-btn" id="sceneBtnThunder" title="гроза" tabindex="-1" draggable="false">⛈️</span>
   </div>
 
   <div class="avatar-block">
@@ -627,13 +627,13 @@
     }
 
     function getCloudTargetCount() {
-      // От ~5 облаков при 0% до ~20 облаков при 100%
-      return Math.max(4, Math.round(5 + sceneCloudCover * 0.15));
+      // Более плотный слой: от ~10 облаков при 0% до ~32 при 100%.
+      return Math.max(9, Math.round(10 + sceneCloudCover * 0.22));
     }
 
     function getCloudSpawnEvery() {
       // Чем облачнее, тем чаще "досоздаём" облака.
-      return Math.max(16, Math.round(55 - sceneCloudCover * 0.35));
+      return Math.max(10, Math.round(34 - sceneCloudCover * 0.14));
     }
 
     function drawSoftSun() {
@@ -1344,9 +1344,9 @@
       search();
     });
 
-    const sceneBtnReset = document.getElementById('sceneBtnReset');
     const sceneBtnRain = document.getElementById('sceneBtnRain');
     const sceneBtnSun = document.getElementById('sceneBtnSun');
+    const sceneBtnThunder = document.getElementById('sceneBtnThunder');
 
     // Небольшой (но достаточно разнообразный) пул городов для подбора “по погоде”.
     // Чтобы не упираться в rate-limit API, при подборе делаем ограниченное число проверок.
@@ -1373,7 +1373,7 @@
 
     function setSceneBusy(busy) {
       sceneBusy = busy;
-      const btns = [sceneBtnReset, sceneBtnRain, sceneBtnSun];
+      const btns = [sceneBtnRain, sceneBtnSun, sceneBtnThunder];
       btns.forEach(b => {
         if (!b) return;
         b.style.opacity = busy ? '0.45' : '0.72';
@@ -1435,36 +1435,18 @@
       }, { passive: false });
     }
 
-    function resetToInitialScreen() {
-      forecastData = null;
-      cityInput.value = '';
-      if (cityTimeBadge) {
-        cityTimeBadge.textContent = '';
-        cityTimeBadge.style.display = 'none';
-      }
-      weatherLine.className = 'weather-line';
-      weatherLine.textContent = '';
-      document.getElementById('tempChartWrap').classList.remove('visible', 'loading');
-      document.getElementById('forecastDays').classList.remove('visible', 'loading');
-      document.getElementById('tempChart').innerHTML = '';
-      document.getElementById('tempChartNums').innerHTML = '';
-      document.getElementById('forecastDays').innerHTML = '';
-      setScene('default');
-      renderFavorites();
-    }
-
-    if (sceneBtnReset) {
-      sceneBtnReset.addEventListener('pointerdown', (e) => {
+    bindSceneButton(sceneBtnRain, 'rain');
+    bindSceneButton(sceneBtnSun, 'clear');
+    if (sceneBtnThunder) {
+      sceneBtnThunder.addEventListener('pointerdown', (e) => {
+        // Отдельная кнопка: просто включает грозовой фон без подбора города.
         e.preventDefault();
         e.stopPropagation();
         const ae = document.activeElement;
         if (ae && ae.blur) ae.blur();
-        resetToInitialScreen();
+        setScene('thunder');
       }, { passive: false });
     }
-
-    bindSceneButton(sceneBtnRain, 'rain');
-    bindSceneButton(sceneBtnSun, 'clear');
 
     let themeToggleLastAt = 0;
     function toggleThemeOnce() {
