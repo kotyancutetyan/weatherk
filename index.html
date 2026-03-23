@@ -7,13 +7,37 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
 
+    :root {
+      --bg-main: #1a1a1a;
+      --bg-panel: #0a0a0a;
+      --border-main: #333;
+      --border-soft: #2a2a2a;
+      --text-main: #ccc;
+      --text-dim: #888;
+      --text-soft: #666;
+      --text-muted: #555;
+      --text-faint: #444;
+    }
+
+    body.light-theme {
+      --bg-main: #e8edf3;
+      --bg-panel: #f8fbff;
+      --border-main: #b7c4d4;
+      --border-soft: #c6d1df;
+      --text-main: #1f2a38;
+      --text-dim: #2e3a49;
+      --text-soft: #3c4a5b;
+      --text-muted: #4f6075;
+      --text-faint: #63748b;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: 'JetBrains Mono', Consolas, monospace;
       min-height: 100vh;
       overflow: hidden;
-      background: #1a1a1a;
+      background: var(--bg-main);
     }
 
     .ascii-bg-wrap {
@@ -22,7 +46,7 @@
       overflow: hidden;
       user-select: none;
       pointer-events: none;
-      background: #1a1a1a;
+      background: var(--bg-main);
     }
 
     .ascii-bg-wrap canvas {
@@ -37,8 +61,8 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: #0a0a0a;
-      border: 1px solid #333;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-main);
       padding: 1.25rem 1.5rem;
       min-width: 300px;
       width: min(92vw, 360px);
@@ -59,28 +83,28 @@
       padding: 0.4rem 0;
       background: transparent;
       border: none;
-      border-bottom: 1px solid #333;
-      color: #ccc;
+      border-bottom: 1px solid var(--border-main);
+      color: var(--text-main);
       outline: none;
     }
 
-    .search-row input::placeholder { color: #555; }
+    .search-row input::placeholder { color: var(--text-muted); }
 
     .refresh-btn {
       font-family: inherit;
       font-size: 13px;
       padding: 0.35rem 0.4rem;
       background: transparent;
-      border: 1px solid #333;
+      border: 1px solid var(--border-main);
       border-radius: 4px;
-      color: #555;
+      color: var(--text-muted);
       cursor: pointer;
       line-height: 1;
     }
 
     .refresh-btn:hover:not(:disabled) {
-      color: #888;
-      border-color: #444;
+      color: var(--text-dim);
+      border-color: var(--text-faint);
     }
 
     .refresh-btn:disabled {
@@ -97,6 +121,24 @@
       animation: refresh-spin 0.65s linear infinite;
     }
 
+    .theme-toggle {
+      position: fixed;
+      top: 0.85rem;
+      right: 1rem;
+      z-index: 20;
+      font-size: 22px;
+      line-height: 1;
+      user-select: none;
+      cursor: pointer;
+      opacity: 0.78;
+      transition: transform 120ms ease, opacity 120ms ease;
+    }
+
+    .theme-toggle:hover {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+
     @keyframes refresh-spin {
       to { transform: rotate(360deg); }
     }
@@ -104,18 +146,18 @@
     .weather-line {
       margin-top: 1rem;
       font-size: 12px;
-      color: #888;
+      color: var(--text-dim);
       min-height: 3em;
       line-height: 1.35;
     }
 
-    .weather-line.error { color: #666; }
-    .weather-line.loading { color: #555; }
+    .weather-line.error { color: var(--text-soft); }
+    .weather-line.loading { color: var(--text-muted); }
 
     .fav-row {
       margin-top: 0.8rem;
       font-size: 11px;
-      color: #555;
+      color: var(--text-muted);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -129,31 +171,31 @@
     .fav-chip {
       cursor: pointer;
       padding: 0.15rem 0.4rem;
-      border: 1px solid #2a2a2a;
+      border: 1px solid var(--border-soft);
       border-radius: 3px;
-      color: #666;
+      color: var(--text-soft);
     }
 
     .fav-chip:hover {
-      color: #888;
-      border-color: #444;
+      color: var(--text-dim);
+      border-color: var(--text-faint);
     }
 
     .fav-add {
       cursor: pointer;
-      color: #444;
+      color: var(--text-faint);
       padding: 0.15rem 0.3rem;
       font-size: 10px;
     }
 
     .fav-add:hover {
-      color: #888;
+      color: var(--text-dim);
     }
 
     .fav-chip .fav-remove {
       margin-left: 0.25rem;
       opacity: 0;
-      color: #555;
+      color: var(--text-muted);
     }
 
     .fav-chip:hover .fav-remove {
@@ -161,7 +203,7 @@
     }
 
     .fav-chip .fav-remove:hover {
-      color: #888;
+      color: var(--text-dim);
     }
 
     .avatar-block {
@@ -176,15 +218,26 @@
     }
 
     .avatar-bubble {
-      background: #0a0a0a;
-      border: 1px solid #333;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-main);
       padding: 0.6rem 0.9rem;
       font-size: 12px;
-      color: #888;
+      color: var(--text-dim);
       max-width: 200px;
       border-radius: 8px;
       position: relative;
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 220ms ease, transform 220ms ease, visibility 0ms linear 220ms;
+    }
+
+    .avatar-bubble.visible {
       opacity: 0.9;
+      transform: translateY(0) scale(1);
+      visibility: visible;
+      transition: opacity 220ms ease, transform 220ms ease, visibility 0ms linear 0ms;
     }
 
     .avatar-bubble::after {
@@ -193,8 +246,8 @@
       right: 20px;
       bottom: -6px;
       border: 6px solid transparent;
-      border-top-color: #333;
-      border-left-color: #333;
+      border-top-color: var(--border-main);
+      border-left-color: var(--border-main);
     }
 
     .avatar-img {
@@ -220,7 +273,7 @@
     .forecast-days {
       margin-top: 0.5rem;
       font-size: 10px;
-      color: #555;
+      color: var(--text-muted);
       display: none;
       flex-wrap: wrap;
       gap: 0.5rem 0.75rem;
@@ -243,7 +296,7 @@
       margin-top: 0.5rem;
       display: none;
       width: 100%;
-      color: #666;
+      color: var(--text-soft);
     }
 
     .temp-chart-wrap.visible {
@@ -281,21 +334,23 @@
       margin: 0;
       padding: 0;
       border: none;
-      border-top: 1px solid #333;
+      border-top: 1px solid var(--border-main);
     }
 
     .spark-times {
       font-size: 9px;
       line-height: 1.25;
-      color: #444;
+      color: var(--text-faint);
       padding-top: 0.25rem;
     }
 
   </style>
 </head>
 <body>
+  <span id="themeToggle" class="theme-toggle" title="светлая тема" role="button" tabindex="0">🌑</span>
+
   <div class="avatar-block">
-    <div class="avatar-bubble" id="complimentBubble">Катюша, ты прекрасная!</div>
+    <div class="avatar-bubble" id="complimentBubble"></div>
     <img class="avatar-img" src="avatar.png" alt="Нажми" id="avatarImg" title="Нажми">
   </div>
 
@@ -716,12 +771,34 @@
     const cityInput = document.getElementById('cityInput');
     const favRow = document.getElementById('favRow');
     const refreshBtn = document.getElementById('refreshBtn');
+    const themeToggle = document.getElementById('themeToggle');
     const FAV_KEY = 'weatherFavorites';
     const LAST_CITY_KEY = 'weatherLastCity';
+    const THEME_KEY = 'weatherTheme';
     let lastCity = '';
     let forecastData = null;
 
+    function applyTheme(theme, save = true) {
+      const nextTheme = theme === 'light' ? 'light' : 'dark';
+      document.body.classList.toggle('light-theme', nextTheme === 'light');
+      themeToggle.textContent = nextTheme === 'light' ? '🌕' : '🌑';
+      themeToggle.title = nextTheme === 'light' ? 'темная тема' : 'светлая тема';
+      if (save) {
+        try { localStorage.setItem(THEME_KEY, nextTheme); } catch (_) {}
+      }
+    }
+
+    function loadSavedTheme() {
+      try {
+        const savedTheme = localStorage.getItem(THEME_KEY);
+        applyTheme(savedTheme === 'light' ? 'light' : 'dark', false);
+      } catch (_) {
+        applyTheme('dark', false);
+      }
+    }
+
     resize();
+    loadSavedTheme();
     initParticles();
     requestAnimationFrame(update);
     renderFavorites();
@@ -965,6 +1042,19 @@
       search();
     });
 
+    themeToggle.addEventListener('click', () => {
+      const isLight = document.body.classList.contains('light-theme');
+      applyTheme(isLight ? 'dark' : 'light');
+    });
+
+    themeToggle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const isLight = document.body.classList.contains('light-theme');
+        applyTheme(isLight ? 'dark' : 'light');
+      }
+    });
+
     const compliments = Array.isArray(window.COMPLIMENTS) && window.COMPLIMENTS.length
       ? window.COMPLIMENTS
       : ['Катюша, ты прекрасная!'];
@@ -973,6 +1063,7 @@
     const avatarImg = document.getElementById('avatarImg');
     let complimentPool = [];
     let lastCompliment = '';
+    let bubbleHideTimer = null;
 
     function refillComplimentPool() {
       complimentPool = compliments.slice();
@@ -993,6 +1084,11 @@
       if (next) {
         lastCompliment = next;
         bubble.textContent = next;
+        bubble.classList.add('visible');
+        if (bubbleHideTimer) clearTimeout(bubbleHideTimer);
+        bubbleHideTimer = setTimeout(() => {
+          bubble.classList.remove('visible');
+        }, 5000);
       }
     }
 
