@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Погода</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #1a1a1a;
+    }
+
+    .ascii-bg-wrap {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      user-select: none;
+      pointer-events: none;
+      background: #1a1a1a;
+    }
+
+    .ascii-bg-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      opacity: 0.7;
+    }
+
+    .window {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #0a0a0a;
+      border: 1px solid #333;
+      padding: 1.25rem 1.5rem;
+      min-width: 300px;
+      width: min(92vw, 360px);
+      z-index: 10;
+    }
+
+    .search-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .search-row input {
+      font-family: inherit;
+      font-size: 13px;
+      flex: 1;
+      min-width: 0;
+      padding: 0.4rem 0;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #333;
+      color: #ccc;
+      outline: none;
+    }
+
+    .search-row input::placeholder { color: #555; }
+
+    .refresh-btn {
+      font-family: inherit;
+      font-size: 13px;
+      padding: 0.35rem 0.4rem;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #555;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .refresh-btn:hover:not(:disabled) {
+      color: #888;
+      border-color: #444;
+    }
+
+    .refresh-btn:disabled {
+      cursor: wait;
+      opacity: 0.85;
+    }
+
+    .refresh-btn .refresh-icon {
+      display: inline-block;
+      transition: transform 0.15s;
+    }
+
+    .refresh-btn.refreshing .refresh-icon {
+      animation: refresh-spin 0.65s linear infinite;
+    }
+
+    @keyframes refresh-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .weather-line {
+      margin-top: 1rem;
+      font-size: 12px;
+      color: #888;
+      min-height: 3em;
+      line-height: 1.35;
+    }
+
+    .weather-line.error { color: #666; }
+    .weather-line.loading { color: #555; }
+
+    .fav-row {
+      margin-top: 0.8rem;
+      font-size: 11px;
+      color: #555;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .fav-row .fav-label {
+      margin-right: 0.2rem;
+    }
+
+    .fav-chip {
+      cursor: pointer;
+      padding: 0.15rem 0.4rem;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+      color: #666;
+    }
+
+    .fav-chip:hover {
+      color: #888;
+      border-color: #444;
+    }
+
+    .fav-add {
+      cursor: pointer;
+      color: #444;
+      padding: 0.15rem 0.3rem;
+      font-size: 10px;
+    }
+
+    .fav-add:hover {
+      color: #888;
+    }
+
+    .fav-chip .fav-remove {
+      margin-left: 0.25rem;
+      opacity: 0;
+      color: #555;
+    }
+
+    .fav-chip:hover .fav-remove {
+      opacity: 1;
+    }
+
+    .fav-chip .fav-remove:hover {
+      color: #888;
+    }
+
+    .avatar-block {
+      position: fixed;
+      right: 1.5rem;
+      bottom: 1.5rem;
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .avatar-bubble {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      padding: 0.6rem 0.9rem;
+      font-size: 12px;
+      color: #888;
+      max-width: 200px;
+      border-radius: 8px;
+      position: relative;
+      opacity: 0.9;
+    }
+
+    .avatar-bubble::after {
+      content: '';
+      position: absolute;
+      right: 20px;
+      bottom: -6px;
+      border: 6px solid transparent;
+      border-top-color: #333;
+      border-left-color: #333;
+    }
+
+    .avatar-img {
+      width: 168px;
+      height: 168px;
+      object-fit: contain;
+      transform: scaleX(-1);
+      animation: avatar-dance 2s ease-in-out infinite;
+      cursor: pointer;
+    }
+
+    .avatar-img:hover {
+      opacity: 0.9;
+    }
+
+    @keyframes avatar-dance {
+      0%, 100% { transform: scaleX(-1) rotate(-3deg) scale(1); }
+      25% { transform: scaleX(-1) rotate(2deg) scale(1.02); }
+      50% { transform: scaleX(-1) rotate(-2deg) scale(1); }
+      75% { transform: scaleX(-1) rotate(3deg) scale(1.02); }
+    }
+
+    .forecast-days {
+      margin-top: 0.5rem;
+      font-size: 10px;
+      color: #555;
+      display: none;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      line-height: 1.4;
+    }
+
+    .forecast-days.visible {
+      display: flex;
+    }
+
+    .forecast-days.loading {
+      opacity: 0.45;
+    }
+
+    .forecast-days .day-slot {
+      white-space: nowrap;
+    }
+
+    .temp-chart-wrap {
+      margin-top: 0.5rem;
+      display: none;
+      width: 100%;
+      color: #666;
+    }
+
+    .temp-chart-wrap.visible {
+      display: block;
+    }
+
+    .temp-chart-wrap.loading {
+      opacity: 0.45;
+    }
+
+    .spark-temps,
+    .spark-times {
+      display: grid;
+      grid-template-columns: repeat(var(--spark-n, 5), minmax(0, 1fr));
+      width: 100%;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      text-align: center;
+    }
+
+    .spark-temps {
+      font-size: 10px;
+      line-height: 1.25;
+      color: #888;
+      padding-bottom: 0.25rem;
+    }
+
+    .spark-temps span,
+    .spark-times span {
+      display: block;
+    }
+
+    .spark-divider {
+      width: 100%;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
+      border-top: 1px solid #333;
+    }
+
+    .spark-times {
+      font-size: 9px;
+      line-height: 1.25;
+      color: #444;
+      padding-top: 0.25rem;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="avatar-block">
+    <div class="avatar-bubble" id="complimentBubble">Катюша, ты прекрасная!</div>
+    <img class="avatar-img" src="avatar.png" alt="Нажми" id="avatarImg" title="Нажми">
+  </div>
+
+  <div class="ascii-bg-wrap">
+    <canvas id="asciiCanvas"></canvas>
+  </div>
+
+  <div class="window">
+    <div class="search-row">
+      <input type="text" id="cityInput" placeholder="город" autocomplete="off">
+      <button type="button" class="refresh-btn" id="refreshBtn" title="обновить"><span class="refresh-icon">⟳</span></button>
+    </div>
+    <div class="weather-line" id="weatherLine"></div>
+    <div class="temp-chart-wrap" id="tempChartWrap">
+      <div class="spark-temps" id="tempChart"></div>
+      <hr class="spark-divider">
+      <div class="spark-times" id="tempChartNums"></div>
+    </div>
+    <div class="forecast-days" id="forecastDays"></div>
+    <div class="fav-row" id="favRow"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="compliments.js"></script>
+  <script>
+    const API_KEY = (typeof window !== 'undefined' && window.OPENWEATHER_API_KEY)
+      ? String(window.OPENWEATHER_API_KEY).trim()
+      : '';
+    const API_URL = 'https://api.openweathermap.org/data/2.5/weather';
+    const FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
+
+    const CLOUD_COLORS = ['#5a5a5a', '#6a6a6a', '#7a7a7a', '#8a8a8a', '#9a9a9a'];
+    const THUNDER_CLOUD_COLORS = ['#3a3a42', '#45454d', '#4a4a52'];
+    const RAIN_COLORS = ['#252d38', '#2e3845', '#384355', '#424d65', '#4a5675'];
+    const SUN_COLORS = ['#4a4835', '#555342', '#656350', '#75735e', '#85836a'];
+    const NIGHT_STAR_COLORS = ['#4a4a55', '#555560', '#60606a'];
+    const MOON_COLOR = '#6a6a70';
+    const MIST_COLORS = ['#404040', '#505050', '#606060'];
+    const SNOW_COLORS = ['#555555', '#656565', '#757575'];
+    const GRASS_COLORS = ['#1a2e1a', '#253525', '#2d3d2d', '#354535'];
+    const GRASS_CHARS = ['|', '/', '\\', ',', "'", '`', '.', ';'];
+
+    const CHAR_W = 6;
+    const CHAR_H = 10;
+
+    const canvas = document.getElementById('asciiCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function rnd(n) { return Math.random() * n; }
+    function rndInt(n) { return Math.floor(rnd(n)); }
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.font = '9px "JetBrains Mono", Consolas, monospace';
+      ctx.textBaseline = 'top';
+    }
+
+    const cols = () => Math.ceil(window.innerWidth / CHAR_W) + 4;
+    const rows = () => Math.ceil(window.innerHeight / CHAR_H) + 4;
+
+    const sceneTypes = ['clouds', 'rain', 'snow', 'mist', 'stars', 'night', 'thunder'];
+    let sceneType = sceneTypes[rndInt(sceneTypes.length)];
+    let particles = [];
+    let frameCount = 0;
+    let transitionAlpha = 1;
+    let transitionState = { phase: 'idle', target: null };
+    const FADE_SPEED = 0.045;
+    let lightningFlash = 0;
+
+    function getSkyColor(type) {
+      if (type === 'night') return '#0f1018';
+      if (type === 'thunder') return '#12141a';
+      return '#1a1a1a';
+    }
+
+    function isNightAt(dtUnix, tzSec) {
+      const sec = ((dtUnix + tzSec) % 86400 + 86400) % 86400;
+      const h = Math.floor(sec / 3600);
+      return h >= 20 || h < 6;
+    }
+
+    function createCloud(fill) {
+      const w = 6 + rndInt(8);
+      const h = 2 + rndInt(2);
+      const chars = ['.', "'", '~', '(', ')', '-', 'o', ','];
+      const shape = [];
+      for (let dy = 0; dy < h; dy++) {
+        let row = '';
+        for (let dx = 0; dx < w; dx++) {
+          const d = Math.abs(dx - w/2) / (w/2) + Math.abs(dy - h/2) / (h/2);
+          row += (rnd(1) > d * 0.6) ? chars[rndInt(chars.length)] : ' ';
+        }
+        shape.push(row);
+      }
+      const c = cols();
+      const r = rows();
+      return {
+        x: fill ? -w + rnd(c + w) : -w - rnd(c),
+        y: rnd(Math.max(1, r - h - 1)),
+        w, h, shape,
+        vx: 0.12 + rnd(0.06),
+        shade: CLOUD_COLORS[rndInt(CLOUD_COLORS.length)]
+      };
+    }
+
+    function createRainDrop(fill) {
+      const c = cols();
+      const r = rows();
+      return {
+        x: rnd(c),
+        y: fill ? -4 + rnd(r + 8) : -2 - rnd(4),
+        len: 1 + rndInt(3),
+        vy: 0.9 + rnd(0.5),
+        shade: RAIN_COLORS[rndInt(RAIN_COLORS.length)]
+      };
+    }
+
+    function createSnowFlake(fill) {
+      const c = cols();
+      const r = rows();
+      return {
+        x: rnd(c),
+        y: fill ? -2 + rnd(r + 4) : -1,
+        vy: 0.18 + rnd(0.12),
+        vx: (rnd(1) - 0.5) * 0.04,
+        shade: SNOW_COLORS[rndInt(SNOW_COLORS.length)],
+        ch: ['*', '.', '\u00B7', "'"][rndInt(4)]
+      };
+    }
+
+    function createStar() {
+      return {
+        x: rnd(cols()),
+        y: rnd(rows()),
+        twinkle: rnd(Math.PI * 2),
+        shade: SUN_COLORS[rndInt(SUN_COLORS.length)],
+        ch: ['.', '*', '+', "'", '\u00B0'][rndInt(5)]
+      };
+    }
+
+    function createMistBlob() {
+      const r = 3 + rndInt(4);
+      return {
+        x: rnd(cols() + 10) - 5,
+        y: rnd(rows() + 5) - 2,
+        r,
+        vx: 0.025 + rnd(0.02),
+        shade: MIST_COLORS[rndInt(MIST_COLORS.length)],
+        life: rnd(1)
+      };
+    }
+
+    function createThunderCloud(fill) {
+      const p = createCloud(fill);
+      p.shade = THUNDER_CLOUD_COLORS[rndInt(THUNDER_CLOUD_COLORS.length)];
+      p.isThunderCloud = true;
+      return p;
+    }
+
+    function createNightStar() {
+      const r = rows();
+      return {
+        x: rnd(cols()),
+        y: rnd(Math.max(2, r * 0.5)),
+        twinkle: rnd(Math.PI * 2),
+        shade: NIGHT_STAR_COLORS[rndInt(NIGHT_STAR_COLORS.length)],
+        ch: ['.', "'", '*', '+'][rndInt(4)]
+      };
+    }
+
+    function createMoon() {
+      const c = cols();
+      const lines = ['   .--.   ', ' .(    ). ', '(   .   )', ' `--___`  '];
+      return { x: Math.max(2, c - 18), y: 3, lines, phase: rnd(Math.PI * 2) };
+    }
+
+    function initParticles() {
+      particles = [];
+      const c = cols();
+      const r = rows();
+
+      if (sceneType === 'clouds') {
+        for (let i = 0; i < 12 + rndInt(4); i++) particles.push(createCloud(true));
+      } else if (sceneType === 'rain') {
+        for (let i = 0; i < 60 + rndInt(20); i++) particles.push(createRainDrop(true));
+      } else if (sceneType === 'snow') {
+        for (let i = 0; i < 85 + rndInt(25); i++) particles.push(createSnowFlake(true));
+      } else if (sceneType === 'stars') {
+        for (let i = 0; i < 110 + rndInt(40); i++) particles.push(createStar());
+      } else if (sceneType === 'mist') {
+        for (let i = 0; i < 20 + rndInt(10); i++) particles.push(createMistBlob());
+      } else if (sceneType === 'thunder') {
+        for (let i = 0; i < 10 + rndInt(4); i++) particles.push(createThunderCloud(true));
+        for (let i = 0; i < 65 + rndInt(25); i++) particles.push(createRainDrop(true));
+      } else if (sceneType === 'night') {
+        particles.push(createMoon());
+        for (let i = 0; i < 90 + rndInt(40); i++) particles.push(createNightStar());
+      }
+    }
+
+    function drawCloudParticle(p) {
+      ctx.fillStyle = p.shade;
+      for (let dy = 0; dy < p.shape.length; dy++) {
+        for (let dx = 0; dx < p.shape[dy].length; dx++) {
+          const ch = p.shape[dy][dx];
+          if (ch !== ' ') {
+            ctx.fillText(ch, (p.x + dx) * CHAR_W, (p.y + dy + 1) * CHAR_H);
+          }
+        }
+      }
+    }
+
+    function drawRainParticle(p) {
+      ctx.fillStyle = p.shade;
+      for (let i = 0; i < p.len; i++) {
+        ctx.fillText(['|', "'", '|'][i % 3], p.x * CHAR_W, (p.y + i + 1) * CHAR_H);
+      }
+    }
+
+    function draw() {
+      const c = cols();
+      const r = rows();
+      const w = c * CHAR_W;
+      const h = r * CHAR_H;
+      const W = Math.max(w, window.innerWidth) + 50;
+      const H = Math.max(h, window.innerHeight) + 50;
+
+      ctx.globalAlpha = transitionAlpha;
+      ctx.fillStyle = getSkyColor(sceneType);
+      ctx.fillRect(0, 0, W, H);
+
+      if (sceneType === 'clouds') {
+        particles.forEach(drawCloudParticle);
+      } else if (sceneType === 'rain') {
+        particles.forEach(drawRainParticle);
+      } else if (sceneType === 'snow') {
+        particles.forEach(p => {
+          ctx.fillStyle = p.shade;
+          ctx.fillText(p.ch, p.x * CHAR_W, (p.y + 1) * CHAR_H);
+        });
+      } else if (sceneType === 'stars') {
+        particles.forEach(p => {
+          if (Math.sin(p.twinkle + frameCount * 0.02) > 0.2) {
+            ctx.fillStyle = p.shade;
+            ctx.fillText(p.ch, p.x * CHAR_W, (p.y + 1) * CHAR_H);
+          }
+        });
+      } else if (sceneType === 'mist') {
+        particles.forEach(p => {
+          ctx.fillStyle = p.shade;
+          for (let dy = -p.r; dy <= p.r; dy++) {
+            for (let dx = -p.r; dx <= p.r; dx++) {
+              if (dx*dx + dy*dy < p.r*p.r*(0.4 + p.life*0.4)) {
+                const hh = ((dx + dy + frameCount*0.5) % 7 + 7) % 7;
+                if (hh < 4) {
+                  ctx.fillText(['\u00B7', '.', '~', "'"][hh], (p.x+dx)*CHAR_W, (p.y+dy+1)*CHAR_H);
+                }
+              }
+            }
+          }
+        });
+      } else if (sceneType === 'thunder') {
+        particles.forEach(p => {
+          if (p.shape) drawCloudParticle(p);
+        });
+        particles.forEach(p => {
+          if (p.len) drawRainParticle(p);
+        });
+      } else if (sceneType === 'night') {
+        particles.forEach(p => {
+          if (p.lines) {
+            ctx.fillStyle = MOON_COLOR;
+            const glow = 0.85 + 0.15 * Math.sin(frameCount * 0.03 + p.phase);
+            ctx.globalAlpha = transitionAlpha * glow;
+            p.lines.forEach((line, li) => {
+              for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch !== ' ') {
+                  ctx.fillText(ch, (p.x + i) * CHAR_W, (p.y + li + 1) * CHAR_H);
+                }
+              }
+            });
+            ctx.globalAlpha = transitionAlpha;
+          } else if (p.twinkle !== undefined) {
+            if (Math.sin(p.twinkle + frameCount * 0.015) > 0.15) {
+              ctx.fillStyle = p.shade;
+              ctx.fillText(p.ch, p.x * CHAR_W, (p.y + 1) * CHAR_H);
+            }
+          }
+        });
+      }
+
+      const grassRows = 4;
+      for (let gy = Math.max(0, r - grassRows); gy < r; gy++) {
+        for (let gx = 0; gx < c; gx++) {
+          const hh = ((gx * 7 + gy * 13 + 41) % 37 + 37) % 37;
+          if (hh < 28) {
+            ctx.fillStyle = GRASS_COLORS[hh % GRASS_COLORS.length];
+            ctx.fillText(GRASS_CHARS[hh % GRASS_CHARS.length], gx * CHAR_W, (gy + 1) * CHAR_H);
+          }
+        }
+      }
+
+      ctx.globalAlpha = 1;
+
+      if (sceneType === 'thunder' && lightningFlash > 0) {
+        const flash = Math.min(0.35, 0.06 + lightningFlash * 0.07);
+        ctx.fillStyle = `rgba(230, 235, 255, ${flash})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+
+    function update() {
+      frameCount++;
+
+      if (transitionState.phase === 'out') {
+        transitionAlpha -= FADE_SPEED;
+        if (transitionAlpha <= 0) {
+          transitionAlpha = 0;
+          sceneType = transitionState.target;
+          initParticles();
+          lightningFlash = 0;
+          transitionState = { phase: 'in', target: null };
+        }
+      } else if (transitionState.phase === 'in') {
+        transitionAlpha += FADE_SPEED;
+        if (transitionAlpha >= 1) {
+          transitionAlpha = 1;
+          transitionState = { phase: 'idle', target: null };
+        }
+      }
+
+      const c = cols();
+      const r = rows();
+
+      if (sceneType === 'clouds') {
+        particles.forEach(p => {
+          p.x += p.vx;
+          if (p.x > c) Object.assign(p, createCloud());
+        });
+        if (frameCount % 40 === 0) particles.push(createCloud(false));
+      } else if (sceneType === 'rain') {
+        particles.forEach(p => {
+          p.y += p.vy;
+          if (p.y > r + 2) Object.assign(p, createRainDrop());
+        });
+      } else if (sceneType === 'snow') {
+        particles.forEach(p => {
+          p.y += p.vy;
+          p.x += p.vx;
+          if (p.y > r + 1) Object.assign(p, createSnowFlake());
+        });
+      } else if (sceneType === 'mist') {
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.life = (p.life + 0.003) % 1;
+          if (p.x > c + 5) Object.assign(p, createMistBlob());
+        });
+      } else if (sceneType === 'thunder') {
+        particles.forEach(p => {
+          if (p.shape) {
+            p.x += p.vx;
+            if (p.x > c) Object.assign(p, createThunderCloud(false));
+          } else if (p.len) {
+            p.y += p.vy;
+            if (p.y > r + 2) Object.assign(p, createRainDrop());
+          }
+        });
+        if (lightningFlash > 0) lightningFlash--;
+        else if (rnd(1) < 0.014) lightningFlash = 3 + rndInt(6);
+      }
+
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function getCondition(weather) {
+      const id = weather.id;
+      if (id >= 200 && id < 300) return 'thunder';
+      if (id >= 600 && id < 700) return 'snow';
+      if ((id >= 500 && id < 600) || (id >= 300 && id < 400)) return 'rain';
+      if (id >= 700 && id < 800) return 'mist';
+      if (id === 800) return 'clear';
+      return 'default';
+    }
+
+    function sceneKeyFromCondition(cond, weather, dt, tz) {
+      if (cond === 'default') return 'clouds';
+      if (cond === 'clear' && weather != null && dt != null && tz != null) {
+        return isNightAt(dt, tz) ? 'night' : 'stars';
+      }
+      const map = {
+        thunder: 'thunder',
+        rain: 'rain',
+        snow: 'snow',
+        mist: 'mist',
+        clear: 'stars'
+      };
+      return map[cond] || 'clouds';
+    }
+
+    function requestSceneChange(key) {
+      if (key === sceneType && transitionState.phase === 'idle' && transitionAlpha >= 1) return;
+      transitionState = { phase: 'out', target: key };
+    }
+
+    function setScene(cond, meta = {}) {
+      const key = sceneKeyFromCondition(cond, meta.weather, meta.dt, meta.tz);
+      requestSceneChange(key);
+    }
+
+    const weatherLine = document.getElementById('weatherLine');
+    const cityInput = document.getElementById('cityInput');
+    const favRow = document.getElementById('favRow');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const FAV_KEY = 'weatherFavorites';
+    const LAST_CITY_KEY = 'weatherLastCity';
+    let lastCity = '';
+    let forecastData = null;
+
+    resize();
+    initParticles();
+    requestAnimationFrame(update);
+    renderFavorites();
+
+    window.addEventListener('resize', () => resize());
+
+    function getFavorites() {
+      try {
+        const s = localStorage.getItem(FAV_KEY);
+        return s ? JSON.parse(s) : [];
+      } catch { return []; }
+    }
+
+    function setFavorites(arr) {
+      localStorage.setItem(FAV_KEY, JSON.stringify(arr));
+      renderFavorites();
+    }
+
+    function addFavorite(city) {
+      const name = city.trim();
+      if (!name) return;
+      const fav = getFavorites();
+      if (!fav.includes(name)) {
+        setFavorites([...fav, name]);
+      }
+    }
+
+    function removeFavorite(city, e) {
+      e.stopPropagation();
+      setFavorites(getFavorites().filter(f => f !== city));
+    }
+
+    function renderFavorites() {
+      const fav = getFavorites();
+      let html = '';
+      if (fav.length) html += '<span class="fav-label">избранное:</span>';
+      fav.forEach(c => {
+        html += `<span class="fav-chip" data-city="${c.replace(/"/g, '&quot;')}">${c}<span class="fav-remove" title="удалить">×</span></span>`;
+      });
+      if (lastCity && !fav.includes(lastCity)) {
+        html += `<span class="fav-add" id="favAdd" title="добавить">+ ${lastCity}</span>`;
+      }
+      favRow.innerHTML = html || '';
+
+      favRow.querySelectorAll('.fav-chip').forEach(el => {
+        el.onclick = (e) => {
+          if (e.target.classList.contains('fav-remove')) { e.stopPropagation(); removeFavorite(el.dataset.city, e); return; }
+          cityInput.value = el.dataset.city;
+          search();
+        };
+      });
+      favRow.querySelector('#favAdd')?.addEventListener('click', () => addFavorite(lastCity));
+    }
+
+    function setWeather(cls, text) {
+      weatherLine.className = 'weather-line ' + cls;
+      weatherLine.textContent = text;
+    }
+
+    async function fetchWeather(params) {
+      const url = new URL(API_URL);
+      url.searchParams.set('appid', API_KEY);
+      url.searchParams.set('lang', 'ru');
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Ошибка');
+      }
+      return res.json();
+    }
+
+    async function fetchForecast(params) {
+      const url = new URL(FORECAST_URL);
+      url.searchParams.set('appid', API_KEY);
+      url.searchParams.set('lang', 'ru');
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Ошибка');
+      }
+      return res.json();
+    }
+
+    function weatherIcon(weather, dt, tz) {
+      if (!weather || weather.id == null) return '🌡️';
+      const id = weather.id;
+      if (id === 800) {
+        if (dt != null && tz != null && isNightAt(dt, tz)) return '🌙';
+        return '☀️';
+      }
+      if (id >= 200 && id < 300) return '⛈️';
+      if (id >= 300 && id < 400) return '🌦️';
+      if (id >= 500 && id < 600) return '🌧️';
+      if (id >= 600 && id < 700) return '❄️';
+      if (id >= 700 && id < 800) return '🌫️';
+      if (id === 801) return '🌤️';
+      if (id === 802) return '⛅';
+      if (id >= 803 && id <= 804) return '☁️';
+      return '☁️';
+    }
+
+    function dayKeyInCity(dt, tz) {
+      const d = new Date((dt + tz) * 1000);
+      return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+    }
+
+    function weekdayShortInCity(dt, tz) {
+      const d = new Date((dt + tz) * 1000);
+      const names = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+      return names[d.getUTCDay()];
+    }
+
+    function renderForecastBlocks() {
+      renderTempChart();
+      renderForecastDays();
+    }
+
+    function renderTempChart() {
+      const wrap = document.getElementById('tempChartWrap');
+      const tempsEl = document.getElementById('tempChart');
+      const timesEl = document.getElementById('tempChartNums');
+      if (!forecastData || !forecastData.list.length) {
+        wrap.classList.remove('visible');
+        return;
+      }
+
+      const tz = forecastData.city.timezone;
+      const slice = forecastData.list.slice(0, 5);
+      if (!slice.length) {
+        wrap.classList.remove('visible');
+        return;
+      }
+
+      const temps = slice.map(it => Math.round(it.main.temp - 273.15));
+      wrap.style.setProperty('--spark-n', String(slice.length));
+
+      let tempHtml = '';
+      let timeHtml = '';
+      slice.forEach((item, i) => {
+        tempHtml += `<span>${temps[i]}°</span>`;
+        const d = new Date((item.dt + tz) * 1000);
+        const hm = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+        timeHtml += `<span>${hm}</span>`;
+      });
+
+      tempsEl.innerHTML = tempHtml;
+      timesEl.innerHTML = timeHtml;
+      wrap.classList.add('visible');
+    }
+
+    function renderForecastDays() {
+      const el = document.getElementById('forecastDays');
+      if (!forecastData || !forecastData.list.length) {
+        el.innerHTML = '';
+        el.classList.remove('visible');
+        return;
+      }
+      const tz = forecastData.city.timezone;
+      const seen = new Set();
+      const days = [];
+      for (const item of forecastData.list) {
+        const k = dayKeyInCity(item.dt, tz);
+        if (!seen.has(k)) {
+          seen.add(k);
+          days.push(item);
+        }
+        if (days.length >= 5) break;
+      }
+
+      let html = '';
+      days.forEach(item => {
+        const wd = weekdayShortInCity(item.dt, tz);
+        const ic = weatherIcon(item.weather[0], item.dt, tz);
+        const t = Math.round(item.main.temp - 273.15);
+        html += `<span class="day-slot">${wd} ${ic} ${t}°</span>`;
+      });
+      el.innerHTML = html;
+      el.classList.add('visible');
+    }
+
+    async function search() {
+      const city = cityInput.value.trim();
+      if (!city) return;
+      if (!API_KEY) {
+        setWeather('error', 'Скопируй config.example.js → config.js и укажи OPENWEATHER_API_KEY (openweathermap.org/api)');
+        return;
+      }
+
+      refreshBtn.classList.add('refreshing');
+      refreshBtn.disabled = true;
+      const forecastDaysEl = document.getElementById('forecastDays');
+      if (forecastDaysEl.classList.contains('visible')) {
+        forecastDaysEl.classList.add('loading');
+      }
+      const tempChartWrap = document.getElementById('tempChartWrap');
+      if (tempChartWrap.classList.contains('visible')) {
+        tempChartWrap.classList.add('loading');
+      }
+
+      setWeather('loading', '...');
+      setScene('default');
+
+      try {
+        const data = await fetchForecast({ q: city });
+        forecastData = data;
+        lastCity = data.city.name;
+
+        const now = data.list[0];
+        const cond = getCondition(now.weather[0]);
+        const temp = Math.round(now.main.temp - 273.15);
+        const iconNow = weatherIcon(now.weather[0], now.dt, data.city.timezone);
+        setWeather('', `${data.city.name} · ${iconNow} ${temp}°C · ${now.weather[0].description}`);
+        setScene(cond, {
+          weather: now.weather[0],
+          dt: now.dt,
+          tz: data.city.timezone
+        });
+        renderForecastBlocks();
+        renderFavorites();
+        try {
+          localStorage.setItem(LAST_CITY_KEY, lastCity);
+        } catch (_) {}
+      } catch (e) {
+        setWeather('error', e.message || 'Не найдено');
+      } finally {
+        refreshBtn.classList.remove('refreshing');
+        refreshBtn.disabled = false;
+        forecastDaysEl.classList.remove('loading');
+        tempChartWrap.classList.remove('loading');
+      }
+    }
+
+    cityInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') search();
+    });
+
+    refreshBtn.addEventListener('click', () => {
+      if (!cityInput.value.trim() && lastCity) cityInput.value = lastCity;
+      search();
+    });
+
+    const compliments = Array.isArray(window.COMPLIMENTS) && window.COMPLIMENTS.length
+      ? window.COMPLIMENTS
+      : ['Катюша, ты прекрасная!'];
+
+    const bubble = document.getElementById('complimentBubble');
+    const avatarImg = document.getElementById('avatarImg');
+    let complimentPool = [];
+    let lastCompliment = '';
+
+    function refillComplimentPool() {
+      complimentPool = compliments.slice();
+      for (let i = complimentPool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [complimentPool[i], complimentPool[j]] = [complimentPool[j], complimentPool[i]];
+      }
+      if (complimentPool.length > 1 && complimentPool[complimentPool.length - 1] === lastCompliment) {
+        const swapIdx = complimentPool.length - 2;
+        [complimentPool[swapIdx], complimentPool[complimentPool.length - 1]] =
+          [complimentPool[complimentPool.length - 1], complimentPool[swapIdx]];
+      }
+    }
+
+    function nextCompliment() {
+      if (!complimentPool.length) refillComplimentPool();
+      const next = complimentPool.pop();
+      if (next) {
+        lastCompliment = next;
+        bubble.textContent = next;
+      }
+    }
+
+    avatarImg.addEventListener('click', nextCompliment);
+
+    (function loadSavedCity() {
+      try {
+        const saved = localStorage.getItem(LAST_CITY_KEY);
+        if (saved && saved.trim()) {
+          cityInput.value = saved.trim();
+          search();
+        }
+      } catch (_) {}
+    })();
+  </script>
+</body>
+</html>
