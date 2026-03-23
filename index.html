@@ -241,6 +241,9 @@
       border: 1px solid var(--border-soft);
       border-radius: 3px;
       color: var(--text-soft);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
       transition: border-color 280ms ease, color 280ms ease;
     }
 
@@ -262,7 +265,7 @@
     }
 
     .fav-chip .fav-remove {
-      margin-left: 0.25rem;
+      margin-left: 0;
       opacity: 0;
       color: var(--text-muted);
     }
@@ -273,6 +276,16 @@
 
     .fav-chip .fav-remove:hover {
       color: var(--text-dim);
+    }
+
+    .fav-time {
+      font-size: 10px;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+
+    .fav-chip.active .fav-time {
+      display: none;
     }
 
     .avatar-block {
@@ -455,7 +468,6 @@
   <div class="scene-buttons" id="sceneButtons" aria-hidden="false">
     <span class="scene-btn" id="sceneBtnRain" title="дождь" tabindex="-1" draggable="false">🌧️</span>
     <span class="scene-btn" id="sceneBtnSun" title="солнце" tabindex="-1" draggable="false">☀️</span>
-    <span class="scene-btn" id="sceneBtnThunder" title="гроза" tabindex="-1" draggable="false">⛈️</span>
     <span class="scene-btn" id="sceneBtnClouds" title="облачко" tabindex="-1" draggable="false">☁️</span>
   </div>
 
@@ -885,8 +897,11 @@
     const FAV_KEY = 'weatherFavorites';
     const LAST_CITY_KEY = 'weatherLastCity';
     const THEME_KEY = 'weatherTheme';
+    const CITY_TZ_KEY = 'weatherCityTimezones';
     let lastCity = '';
     let forecastData = null;
+    let favoritesTimeInterval = null;
+    let tzWarmupRunning = false;
 
     function applyTheme(theme, save = true) {
       const nextTheme = theme === 'light' ? 'light' : 'dark';
@@ -912,6 +927,8 @@
     initParticles();
     requestAnimationFrame(update);
     renderFavorites();
+    updateFavoritesTimes();
+    favoritesTimeInterval = setInterval(updateFavoritesTimes, 30000);
 
     window.addEventListener('resize', () => resize());
 
@@ -941,12 +958,86 @@
       setFavorites(getFavorites().filter(f => f !== city));
     }
 
+    function getCityTimezones() {
+      try {
+        const raw = localStorage.getItem(CITY_TZ_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch { return {}; }
+    }
+
+    function setCityTimezone(city, tzSec) {
+      try {
+        const map = getCityTimezones();
+        map[city] = tzSec;
+        localStorage.setItem(CITY_TZ_KEY, JSON.stringify(map));
+      } catch (_) {}
+    }
+
+    function formatLocalTimeFromOffsetSec(offsetSec) {
+      if (!Number.isFinite(offsetSec)) return '--:--';
+      const d = new Date(Date.now() + offsetSec * 1000);
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+
+    function updateFavoritesTimes() {
+      try {
+        const timeEls = favRow.querySelectorAll('.fav-time[data-tz]');
+        timeEls.forEach(el => {
+          const chip = el.closest('.fav-chip');
+          if (chip && chip.classList.contains('active')) return;
+          const tz = Number(el.dataset.tz);
+          if (!Number.isFinite(tz)) return;
+          el.textContent = formatLocalTimeFromOffsetSec(tz);
+        });
+      } catch (_) {}
+    }
+
+    async function warmMissingCityTimezones() {
+      if (tzWarmupRunning) return;
+      if (!API_KEY) return;
+
+      const fav = getFavorites();
+      const tzMap = getCityTimezones();
+      const missing = fav.filter(c => !Number.isFinite(Number(tzMap[c])));
+      if (!missing.length) return;
+
+      // Ограничим количество запросов, чтобы не упираться в rate-limit.
+      const maxFetch = Math.min(4, missing.length);
+      tzWarmupRunning = true;
+      try {
+        for (let i = 0; i < maxFetch; i++) {
+          const city = missing[i];
+          try {
+            const data = await fetchForecast({ q: city });
+            const tzSec = data && data.city && data.city.timezone;
+            if (Number.isFinite(Number(tzSec))) setCityTimezone(city, Number(tzSec));
+          } catch (_) {}
+        }
+        // Обновим разметку, чтобы подставить data-tz у элементов времени.
+        renderFavorites();
+      } finally {
+        tzWarmupRunning = false;
+      }
+    }
+
     function renderFavorites() {
       const fav = getFavorites();
+      const activeCity = cityInput.value.trim();
+      const tzMap = getCityTimezones();
       let html = '';
       if (fav.length) html += '<span class="fav-label">избранное:</span>';
       fav.forEach(c => {
-        html += `<span class="fav-chip" data-city="${c.replace(/"/g, '&quot;')}">${c}<span class="fav-remove" title="удалить">×</span></span>`;
+        const tzRaw = tzMap[c];
+        const tzSec = Number(tzRaw);
+        const timeStr = Number.isFinite(tzSec) ? formatLocalTimeFromOffsetSec(tzSec) : '--:--';
+        const active = activeCity && activeCity === c;
+        html += `<span class="fav-chip${active ? ' active' : ''}" data-city="${c.replace(/"/g, '&quot;')}">
+          <span class="fav-name">${c}</span>
+          <span class="fav-time" ${Number.isFinite(tzSec) ? `data-tz="${tzSec}"` : ''}>${timeStr}</span>
+          <span class="fav-remove" title="удалить">×</span>
+        </span>`;
       });
       if (lastCity && !fav.includes(lastCity)) {
         html += `<span class="fav-add" id="favAdd" title="добавить">+ ${lastCity}</span>`;
@@ -957,10 +1048,18 @@
         el.onclick = (e) => {
           if (e.target.classList.contains('fav-remove')) { e.stopPropagation(); removeFavorite(el.dataset.city, e); return; }
           cityInput.value = el.dataset.city;
+          // Сразу скрываем время у выбранной строки (без ожидания запроса).
+          favRow.querySelectorAll('.fav-chip').forEach(ch => {
+            ch.classList.toggle('active', ch.dataset.city === el.dataset.city);
+          });
           search();
         };
       });
       favRow.querySelector('#favAdd')?.addEventListener('click', () => addFavorite(lastCity));
+
+      // В фоне добьём отсутствующие timezone'ы (если их нет в localStorage).
+      // Не ждём ответа, чтобы не блокировать UI.
+      warmMissingCityTimezones();
     }
 
     function setWeather(cls, text) {
@@ -1154,7 +1253,6 @@
 
     const sceneBtnRain = document.getElementById('sceneBtnRain');
     const sceneBtnSun = document.getElementById('sceneBtnSun');
-    const sceneBtnThunder = document.getElementById('sceneBtnThunder');
     const sceneBtnClouds = document.getElementById('sceneBtnClouds');
 
     // Небольшой (но достаточно разнообразный) пул городов для подбора “по погоде”.
@@ -1182,7 +1280,7 @@
 
     function setSceneBusy(busy) {
       sceneBusy = busy;
-      const btns = [sceneBtnRain, sceneBtnSun, sceneBtnThunder, sceneBtnClouds];
+      const btns = [sceneBtnRain, sceneBtnSun, sceneBtnClouds];
       btns.forEach(b => {
         if (!b) return;
         b.style.opacity = busy ? '0.45' : '0.72';
@@ -1246,7 +1344,6 @@
 
     bindSceneButton(sceneBtnRain, 'rain');
     bindSceneButton(sceneBtnSun, 'clear');
-    bindSceneButton(sceneBtnThunder, 'thunder');
     bindSceneButton(sceneBtnClouds, 'default');
 
     let themeToggleLastAt = 0;
