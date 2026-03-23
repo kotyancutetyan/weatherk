@@ -19,6 +19,19 @@
       --text-faint: #444;
     }
 
+    /* Android WebView/Chrome может рисовать blue focus/tap highlight.
+       Убираем его, чтобы интерфейс выглядел как на ПК. */
+    * {
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+      -webkit-touch-callout: none;
+    }
+
+    *:focus,
+    *:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
     body.light-theme {
       --bg-main: #e8edf3;
       --bg-panel: #f8fbff;
