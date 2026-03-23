@@ -241,9 +241,6 @@
       border: 1px solid var(--border-soft);
       border-radius: 3px;
       color: var(--text-soft);
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
       transition: border-color 280ms ease, color 280ms ease;
     }
 
@@ -265,7 +262,7 @@
     }
 
     .fav-chip .fav-remove {
-      margin-left: 0;
+      margin-left: 0.25rem;
       opacity: 0;
       color: var(--text-muted);
     }
@@ -278,14 +275,14 @@
       color: var(--text-dim);
     }
 
-    .fav-time {
-      font-size: 10px;
+    .city-time-badge {
+      font-size: 12px;
       color: var(--text-faint);
+      line-height: 1;
+      padding: 0 0.35rem 0.15rem 0.35rem;
+      border-bottom: 1px solid transparent;
       white-space: nowrap;
-    }
-
-    .fav-chip.active .fav-time {
-      display: none;
+      user-select: none;
     }
 
     .avatar-block {
@@ -483,6 +480,7 @@
   <div class="window">
     <div class="search-row">
       <input type="text" id="cityInput" placeholder="город" autocomplete="off">
+        <span id="cityTimeBadge" class="city-time-badge" aria-hidden="true"></span>
       <button type="button" class="refresh-btn" id="refreshBtn" title="обновить"><span class="refresh-icon">⟳</span></button>
     </div>
     <div class="weather-line" id="weatherLine"></div>
@@ -894,14 +892,13 @@
     const favRow = document.getElementById('favRow');
     const refreshBtn = document.getElementById('refreshBtn');
     const themeToggle = document.getElementById('themeToggle');
+    const cityTimeBadge = document.getElementById('cityTimeBadge');
     const FAV_KEY = 'weatherFavorites';
     const LAST_CITY_KEY = 'weatherLastCity';
     const THEME_KEY = 'weatherTheme';
     const CITY_TZ_KEY = 'weatherCityTimezones';
     let lastCity = '';
     let forecastData = null;
-    let favoritesTimeInterval = null;
-    let tzWarmupRunning = false;
 
     function applyTheme(theme, save = true) {
       const nextTheme = theme === 'light' ? 'light' : 'dark';
@@ -927,8 +924,7 @@
     initParticles();
     requestAnimationFrame(update);
     renderFavorites();
-    updateFavoritesTimes();
-    favoritesTimeInterval = setInterval(updateFavoritesTimes, 30000);
+    updateCityTimeBadge();
 
     window.addEventListener('resize', () => resize());
 
@@ -981,63 +977,53 @@
       return `${hh}:${mm}`;
     }
 
-    function updateFavoritesTimes() {
+    async function ensureCityTimezone(city) {
+      if (!API_KEY) return;
+      const tzMap = getCityTimezones();
+      const existing = tzMap[city];
+      if (Number.isFinite(Number(existing))) return;
+      // Ограничиваемся одним запросом на кэш-пропуски (в пределах UI).
       try {
-        const timeEls = favRow.querySelectorAll('.fav-time[data-tz]');
-        timeEls.forEach(el => {
-          const chip = el.closest('.fav-chip');
-          if (chip && chip.classList.contains('active')) return;
-          const tz = Number(el.dataset.tz);
-          if (!Number.isFinite(tz)) return;
-          el.textContent = formatLocalTimeFromOffsetSec(tz);
-        });
+        const data = await fetchForecast({ q: city });
+        const tzSec = data && data.city && data.city.timezone;
+        if (Number.isFinite(Number(tzSec))) setCityTimezone(city, Number(tzSec));
       } catch (_) {}
     }
 
-    async function warmMissingCityTimezones() {
-      if (tzWarmupRunning) return;
-      if (!API_KEY) return;
-
-      const fav = getFavorites();
-      const tzMap = getCityTimezones();
-      const missing = fav.filter(c => !Number.isFinite(Number(tzMap[c])));
-      if (!missing.length) return;
-
-      // Ограничим количество запросов, чтобы не упираться в rate-limit.
-      const maxFetch = Math.min(4, missing.length);
-      tzWarmupRunning = true;
+    function updateCityTimeBadge() {
       try {
-        for (let i = 0; i < maxFetch; i++) {
-          const city = missing[i];
-          try {
-            const data = await fetchForecast({ q: city });
-            const tzSec = data && data.city && data.city.timezone;
-            if (Number.isFinite(Number(tzSec))) setCityTimezone(city, Number(tzSec));
-          } catch (_) {}
+        if (!cityTimeBadge) return;
+        const city = cityInput.value.trim();
+        if (!city) {
+          cityTimeBadge.textContent = '';
+          cityTimeBadge.style.display = 'none';
+          return;
         }
-        // Обновим разметку, чтобы подставить data-tz у элементов времени.
-        renderFavorites();
-      } finally {
-        tzWarmupRunning = false;
-      }
+        if (document.activeElement === cityInput) {
+          cityTimeBadge.textContent = '';
+          cityTimeBadge.style.display = 'none';
+          return;
+        }
+        const tzMap = getCityTimezones();
+        const tzSec = Number(tzMap[city]);
+        if (!Number.isFinite(tzSec)) {
+          cityTimeBadge.textContent = '--:--';
+          cityTimeBadge.style.display = 'block';
+          // Подтянем в фоне, чтобы потом появилось точное время.
+          ensureCityTimezone(city).then(updateCityTimeBadge).catch(() => {});
+          return;
+        }
+        cityTimeBadge.textContent = formatLocalTimeFromOffsetSec(tzSec);
+        cityTimeBadge.style.display = 'block';
+      } catch (_) {}
     }
 
     function renderFavorites() {
       const fav = getFavorites();
-      const activeCity = cityInput.value.trim();
-      const tzMap = getCityTimezones();
       let html = '';
       if (fav.length) html += '<span class="fav-label">избранное:</span>';
       fav.forEach(c => {
-        const tzRaw = tzMap[c];
-        const tzSec = Number(tzRaw);
-        const timeStr = Number.isFinite(tzSec) ? formatLocalTimeFromOffsetSec(tzSec) : '--:--';
-        const active = activeCity && activeCity === c;
-        html += `<span class="fav-chip${active ? ' active' : ''}" data-city="${c.replace(/"/g, '&quot;')}">
-          <span class="fav-name">${c}</span>
-          <span class="fav-time" ${Number.isFinite(tzSec) ? `data-tz="${tzSec}"` : ''}>${timeStr}</span>
-          <span class="fav-remove" title="удалить">×</span>
-        </span>`;
+        html += `<span class="fav-chip" data-city="${c.replace(/"/g, '&quot;')}">${c}<span class="fav-remove" title="удалить">×</span></span>`;
       });
       if (lastCity && !fav.includes(lastCity)) {
         html += `<span class="fav-add" id="favAdd" title="добавить">+ ${lastCity}</span>`;
@@ -1048,18 +1034,10 @@
         el.onclick = (e) => {
           if (e.target.classList.contains('fav-remove')) { e.stopPropagation(); removeFavorite(el.dataset.city, e); return; }
           cityInput.value = el.dataset.city;
-          // Сразу скрываем время у выбранной строки (без ожидания запроса).
-          favRow.querySelectorAll('.fav-chip').forEach(ch => {
-            ch.classList.toggle('active', ch.dataset.city === el.dataset.city);
-          });
           search();
         };
       });
       favRow.querySelector('#favAdd')?.addEventListener('click', () => addFavorite(lastCity));
-
-      // В фоне добьём отсутствующие timezone'ы (если их нет в localStorage).
-      // Не ждём ответа, чтобы не блокировать UI.
-      warmMissingCityTimezones();
     }
 
     function setWeather(cls, text) {
@@ -1216,6 +1194,14 @@
         const data = await fetchForecast({ q: city });
         forecastData = data;
         lastCity = data.city.name;
+        // Кэшируем timezone для отображения местного времени рядом с инпутом.
+        try {
+          const tzSec = data && data.city && data.city.timezone;
+          if (Number.isFinite(Number(tzSec))) {
+            setCityTimezone(city, Number(tzSec));
+            setCityTimezone(lastCity, Number(tzSec));
+          }
+        } catch (_) {}
 
         const now = data.list[0];
         const cond = getCondition(now.weather[0]);
@@ -1229,6 +1215,7 @@
         });
         renderForecastBlocks();
         renderFavorites();
+        updateCityTimeBadge();
         try {
           localStorage.setItem(LAST_CITY_KEY, lastCity);
         } catch (_) {}
@@ -1244,6 +1231,18 @@
 
     cityInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') search();
+    });
+
+    cityInput.addEventListener('focus', () => {
+      // По условию: когда пользователь нажимает на строку инпута города — время пропадает.
+      if (cityTimeBadge) {
+        cityTimeBadge.textContent = '';
+        cityTimeBadge.style.display = 'none';
+      }
+    });
+
+    cityInput.addEventListener('blur', () => {
+      updateCityTimeBadge();
     });
 
     refreshBtn.addEventListener('click', () => {
