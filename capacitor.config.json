@@ -1,0 +1,10 @@
+{
+  "appId": "com.kotyancutetyan.weatherk",
+  "appName": "weatherk",
+  "webDir": "www",
+  "server": {
+    "url": "https://kotyancutetyan.github.io/weatherk/",
+    "cleartext": false
+  }
+}
+

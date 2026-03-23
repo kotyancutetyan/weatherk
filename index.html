@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Погода</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
@@ -48,7 +48,7 @@
 
     body {
       font-family: 'JetBrains Mono', Consolas, monospace;
-      min-height: 100vh;
+      min-height: 100dvh;
       overflow: hidden;
       background-color: var(--bg-main);
       transition: background-color 280ms ease;
@@ -513,7 +513,7 @@
   <script>
     // Версионирование: 0.MINOR.PATCH (пока ниже 1.0).
     // MINOR: заметная новая фича/изменение UI, PATCH: точечный фикс.
-    const APP_VERSION = '0.9.0';
+    const APP_VERSION = '0.10.1';
     const API_KEY = (typeof window !== 'undefined' && window.OPENWEATHER_API_KEY)
       ? String(window.OPENWEATHER_API_KEY).trim()
       : '';
@@ -992,6 +992,19 @@
     let lastCity = '';
     let forecastData = null;
 
+    function syncNativeWidgetPrefs(city) {
+      try {
+        const weatherPrefs = window.Capacitor && window.Capacitor.Plugins
+          ? window.Capacitor.Plugins.WeatherPrefs
+          : null;
+        if (!weatherPrefs || !weatherPrefs.save) return;
+        const payload = {};
+        if (API_KEY) payload.apiKey = API_KEY;
+        if (city) payload.lastCity = city;
+        weatherPrefs.save(payload).catch(() => {});
+      } catch (_) {}
+    }
+
     function applyTheme(theme, save = true) {
       const nextTheme = theme === 'light' ? 'light' : 'dark';
       document.body.classList.toggle('light-theme', nextTheme === 'light');
@@ -1014,6 +1027,7 @@
     resize();
     loadSavedTheme();
     if (appVersionLabel) appVersionLabel.textContent = `v${APP_VERSION}`;
+    syncNativeWidgetPrefs(lastCity);
     initParticles();
     requestAnimationFrame(update);
     renderFavorites();
@@ -1287,6 +1301,7 @@
         const data = await fetchForecast({ q: city });
         forecastData = data;
         lastCity = data.city.name;
+        syncNativeWidgetPrefs(lastCity);
         // Кэшируем timezone для отображения местного времени рядом с инпутом.
         try {
           const tzSec = data && data.city && data.city.timezone;
@@ -1535,6 +1550,8 @@
         const saved = localStorage.getItem(LAST_CITY_KEY);
         if (saved && saved.trim()) {
           cityInput.value = saved.trim();
+          // Перед первым запросом передадим в native-слой ключ + последний город для виджета.
+          syncNativeWidgetPrefs(saved.trim());
           search();
         }
       } catch (_) {}

@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">weatherk</string>
+    <string name="title_activity_main">weatherk</string>
+    <string name="package_name">com.kotyancutetyan.weatherk</string>
+    <string name="custom_url_scheme">com.kotyancutetyan.weatherk</string>
+    <string name="widget_avatar_name">Аватар (1x2)</string>
+</resources>

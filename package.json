@@ -1,0 +1,15 @@
+{
+  "name": "weatherk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Weather app (Capacitor Android)",
+  "scripts": {
+    "sync:web": "node scripts/sync-web.cjs",
+    "android": "npx cap open android",
+    "copy": "npm run sync:web && npx cap copy android",
+    "sync": "npm run sync:web && npx cap sync android",
+    "run:android": "npm run sync:web && npx cap run android",
+    "run:android:live": "npm run sync:web && npx cap run android -l --external"
+  }
+}
+
