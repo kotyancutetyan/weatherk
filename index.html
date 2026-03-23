@@ -373,7 +373,7 @@
   </style>
 </head>
 <body>
-  <span id="themeToggle" class="theme-toggle" title="светлая тема" role="button" tabindex="0">🌑</span>
+  <span id="themeToggle" class="theme-toggle" title="светлая тема" role="button" tabindex="-1">🌑</span>
 
   <div class="avatar-block">
     <div class="avatar-bubble" id="complimentBubble"></div>
@@ -1080,6 +1080,21 @@
         applyTheme(isLight ? 'dark' : 'light');
       }
     });
+
+    function blurIfNonInput(target) {
+      try {
+        const tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+        const isTypingTarget = tag === 'input' || tag === 'textarea' || tag === 'select' || (target && target.isContentEditable);
+        if (isTypingTarget) return;
+        const ae = document.activeElement;
+        if (ae && ae.blur) setTimeout(() => ae.blur(), 0);
+      } catch (_) {}
+    }
+
+    // Android WebView sometimes shows focus frames on touch/click.
+    // Мягко "снимаем" фокус с активного элемента, кроме полей ввода.
+    document.addEventListener('touchstart', (e) => blurIfNonInput(e.target), { passive: true });
+    document.addEventListener('mousedown', (e) => blurIfNonInput(e.target), { passive: true });
 
     const compliments = Array.isArray(window.COMPLIMENTS) && window.COMPLIMENTS.length
       ? window.COMPLIMENTS
