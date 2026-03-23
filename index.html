@@ -1198,11 +1198,13 @@
       for (let i = 0; i < Math.min(maxChecks, pool.length); i++) {
         const candidate = pool[i];
         try {
-          const w = await fetchWeather({ q: candidate });
-          const cond = (w && w.weather && w.weather[0]) ? getCondition(w.weather[0]) : '';
-          if (cond === targetCond) {
-            return (w && w.name) ? w.name : candidate;
-          }
+          // Важно: search() показывает прогноз (list[0]), поэтому и подбор должен
+          // проверять forecast list[0], иначе можно подобрать город с “дождём сейчас”,
+          // но “пасмурно” попадёт в первый прогнозный слот.
+          const data = await fetchForecast({ q: candidate });
+          const nowSlot = data && data.list && data.list[0];
+          const cond = (nowSlot && nowSlot.weather && nowSlot.weather[0]) ? getCondition(nowSlot.weather[0]) : '';
+          if (cond === targetCond) return (data && data.city && data.city.name) ? data.city.name : candidate;
         } catch (_) {
           // игнорируем кандидатов, по которым запрос упал
         }
