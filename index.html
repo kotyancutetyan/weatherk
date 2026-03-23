@@ -1084,28 +1084,21 @@
       search();
     });
 
-    themeToggle.addEventListener('pointerdown', () => {
-      // Снимаем фокус сразу при тапе (Android WebView может рисовать рамку до click).
-      themeToggle.blur();
-    });
-
-    themeToggle.addEventListener('touchstart', () => {
-      themeToggle.blur();
-    }, { passive: true });
-
-    themeToggle.addEventListener('click', () => {
+    let themeToggleLastAt = 0;
+    function toggleThemeOnce() {
+      const now = Date.now();
+      if (now - themeToggleLastAt < 250) return;
+      themeToggleLastAt = now;
       const isLight = document.body.classList.contains('light-theme');
       applyTheme(isLight ? 'dark' : 'light');
       themeToggle.blur();
-    });
+    }
 
-    themeToggle.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        const isLight = document.body.classList.contains('light-theme');
-        applyTheme(isLight ? 'dark' : 'light');
-      }
-    });
+    themeToggle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleThemeOnce();
+    }, { passive: false });
 
     function blurIfNonInput(target) {
       try {
@@ -1159,29 +1152,19 @@
       }
     }
 
-    avatarImg.addEventListener('click', () => {
-      // Убираем браузерный blue-focus при клике по картинке.
+    avatarImg.addEventListener('pointerdown', (e) => {
+      // Снимаем focus/tap highlight и обновляем фразу сразу.
+      e.preventDefault();
+      e.stopPropagation();
       avatarImg.blur();
       nextCompliment();
-    });
+    }, { passive: false });
 
-    avatarImg.addEventListener('pointerdown', () => {
-      // На Android WebView иногда появляется tap/focus highlight до события click.
-      avatarImg.blur();
-    });
+    avatarImg.addEventListener('focus', () => avatarImg.blur());
 
-    avatarImg.addEventListener('focus', () => {
-      // Если элемент всё-таки получил focus — сразу убираем, чтобы не показывать рамку.
-      avatarImg.blur();
-    });
+    avatarImg.addEventListener('pointerup', () => avatarImg.blur());
 
-    avatarImg.addEventListener('pointerup', () => {
-      avatarImg.blur();
-    });
-
-    avatarImg.addEventListener('touchend', () => {
-      avatarImg.blur();
-    });
+    avatarImg.addEventListener('touchend', () => avatarImg.blur());
 
     (function loadSavedCity() {
       try {
