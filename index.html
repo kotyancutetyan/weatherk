@@ -50,7 +50,8 @@
       font-family: 'JetBrains Mono', Consolas, monospace;
       min-height: 100vh;
       overflow: hidden;
-      background: var(--bg-main);
+      background-color: var(--bg-main);
+      transition: background-color 280ms ease;
     }
 
     .ascii-bg-wrap {
@@ -59,7 +60,8 @@
       overflow: hidden;
       user-select: none;
       pointer-events: none;
-      background: var(--bg-main);
+      background-color: var(--bg-main);
+      transition: background-color 280ms ease;
     }
 
     .ascii-bg-wrap canvas {
@@ -74,12 +76,13 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: var(--bg-panel);
+      background-color: var(--bg-panel);
       border: 1px solid var(--border-main);
       padding: 1.25rem 1.5rem;
       min-width: 300px;
       width: min(92vw, 360px);
       z-index: 10;
+      transition: background-color 280ms ease, border-color 280ms ease;
     }
 
     .search-row {
@@ -99,6 +102,7 @@
       border-bottom: 1px solid var(--border-main);
       color: var(--text-main);
       outline: none;
+      transition: border-color 280ms ease, color 280ms ease;
     }
 
     .search-row input::placeholder { color: var(--text-muted); }
@@ -113,6 +117,7 @@
       color: var(--text-muted);
       cursor: pointer;
       line-height: 1;
+      transition: border-color 280ms ease, color 280ms ease;
     }
 
     .refresh-btn:hover:not(:disabled) {
@@ -174,6 +179,7 @@
       color: var(--text-dim);
       min-height: 3em;
       line-height: 1.35;
+      transition: color 280ms ease;
     }
 
     .weather-line.error { color: var(--text-soft); }
@@ -187,6 +193,7 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 0.3rem;
+      transition: color 280ms ease;
     }
 
     .fav-row .fav-label {
@@ -199,6 +206,7 @@
       border: 1px solid var(--border-soft);
       border-radius: 3px;
       color: var(--text-soft);
+      transition: border-color 280ms ease, color 280ms ease;
     }
 
     .fav-chip:hover {
@@ -211,6 +219,7 @@
       color: var(--text-faint);
       padding: 0.15rem 0.3rem;
       font-size: 10px;
+      transition: color 280ms ease;
     }
 
     .fav-add:hover {
@@ -243,7 +252,7 @@
     }
 
     .avatar-bubble {
-      background: var(--bg-panel);
+      background-color: var(--bg-panel);
       border: 1px solid var(--border-main);
       padding: 0.6rem 0.9rem;
       font-size: 12px;
@@ -255,14 +264,26 @@
       transform: translateY(6px) scale(0.98);
       visibility: hidden;
       pointer-events: none;
-      transition: opacity 220ms ease, transform 220ms ease, visibility 0ms linear 220ms;
+      transition:
+        background-color 280ms ease,
+        border-color 280ms ease,
+        color 280ms ease,
+        opacity 220ms ease,
+        transform 220ms ease,
+        visibility 0ms linear 220ms;
     }
 
     .avatar-bubble.visible {
       opacity: 0.9;
       transform: translateY(0) scale(1);
       visibility: visible;
-      transition: opacity 220ms ease, transform 220ms ease, visibility 0ms linear 0ms;
+      transition:
+        background-color 280ms ease,
+        border-color 280ms ease,
+        color 280ms ease,
+        opacity 220ms ease,
+        transform 220ms ease,
+        visibility 0ms linear 0ms;
     }
 
     .avatar-bubble::after {
@@ -273,6 +294,7 @@
       border: 6px solid transparent;
       border-top-color: var(--border-main);
       border-left-color: var(--border-main);
+      transition: border-top-color 280ms ease, border-left-color 280ms ease;
     }
 
     .avatar-img {
@@ -320,6 +342,7 @@
       overflow: hidden; /* не даём блокам переноситься на следующую строку */
       gap: 0.5rem 0.75rem;
       line-height: 1.4;
+      transition: color 280ms ease;
     }
 
     .forecast-days.visible {
@@ -339,6 +362,7 @@
       display: none;
       width: 100%;
       color: var(--text-soft);
+      transition: color 280ms ease;
     }
 
     .temp-chart-wrap.visible {
@@ -361,8 +385,9 @@
     .spark-temps {
       font-size: 10px;
       line-height: 1.25;
-      color: #888;
+      color: var(--text-dim);
       padding-bottom: 0.25rem;
+      transition: color 280ms ease;
     }
 
     .spark-temps span,
@@ -384,6 +409,7 @@
       line-height: 1.25;
       color: var(--text-faint);
       padding-top: 0.25rem;
+      transition: color 280ms ease;
     }
 
   </style>
