@@ -512,24 +512,6 @@
     const SNOW_COLORS = ['#555555', '#656565', '#757575'];
     const GRASS_COLORS = ['#1a2e1a', '#253525', '#2d3d2d', '#354535'];
     const GRASS_CHARS = ['|', '/', '\\', ',', "'", '`', '.', ';'];
-    const CLOUD_TEMPLATES = [
-      [
-        '   .--.     .--.   ',
-        '.-(    )---(    )-.',
-        '(___.-`  .  `-.___)'
-      ],
-      [
-        '    .-~~-.   .-~~-. ',
-        '.--(      )-(      )',
-        '   `-.__.-`  `-.__.-'
-      ],
-      [
-        '   .--.    .--.   ',
-        '.-(    )--(    )-.',
-        ' (__.-`  .  `-.__)'
-      ]
-    ];
-
     const CHAR_W = 6;
     const CHAR_H = 10;
 
@@ -577,14 +559,43 @@
     }
 
     function createCloud(fill) {
-      const base = CLOUD_TEMPLATES[rndInt(CLOUD_TEMPLATES.length)];
-      const shape = base.map(line => line.split('').map(ch => {
-        if (ch === ' ') return ' ';
-        // Облака рендерим эмодзи-символом.
-        return '☁';
-      }).join(''));
-      const w = shape[0].length;
-      const h = shape.length;
+      // Генерируем "плотное" облако из нескольких пересекающихся эллипсов.
+      const w = 12 + rndInt(11);
+      const h = 4 + rndInt(4);
+      const cloudChars = ['.', 'o', 'O', '@', '*'];
+      const shape = [];
+
+      const lumps = [];
+      const lumpCount = 3 + rndInt(3);
+      for (let i = 0; i < lumpCount; i++) {
+        lumps.push({
+          cx: 2 + rnd(w - 4),
+          cy: 1 + rnd(h - 2),
+          rx: 2.6 + rnd(3.3),
+          ry: 1.2 + rnd(1.7)
+        });
+      }
+
+      for (let dy = 0; dy < h; dy++) {
+        let row = '';
+        for (let dx = 0; dx < w; dx++) {
+          let density = 0;
+          for (const l of lumps) {
+            const nx = (dx - l.cx) / l.rx;
+            const ny = (dy - l.cy) / l.ry;
+            const d = nx * nx + ny * ny;
+            if (d <= 1) density += (1 - d);
+          }
+          // Плотный центр + мягкие края.
+          if (density > 0.18) {
+            const idx = Math.min(cloudChars.length - 1, Math.floor(density * 1.6));
+            row += cloudChars[idx];
+          } else {
+            row += ' ';
+          }
+        }
+        shape.push(row);
+      }
       const c = cols();
       const r = rows();
       const speedFactor = 0.75 + (100 - sceneCloudCover) / 180;
@@ -724,21 +735,15 @@
     }
 
     function drawCloudParticle(p) {
-      // Для облаков используем emoji-шрифт, иначе на некоторых устройствах
-      // символ может отображаться как моноширинный "ASCII-вид".
-      ctx.save();
-      ctx.font = '11px "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif';
+      ctx.fillStyle = p.shade;
       for (let dy = 0; dy < p.shape.length; dy++) {
         for (let dx = 0; dx < p.shape[dy].length; dx++) {
           const ch = p.shape[dy][dx];
           if (ch !== ' ') {
-            // Прореживаем точки, чтобы не превращать облако в плотный ковёр.
-            if (((dx + dy) % 2) !== 0) continue;
-            ctx.fillText('☁️', (p.x + dx) * CHAR_W, (p.y + dy + 1) * CHAR_H);
+            ctx.fillText(ch, (p.x + dx) * CHAR_W, (p.y + dy + 1) * CHAR_H);
           }
         }
       }
-      ctx.restore();
     }
 
     function drawRainParticle(p) {
