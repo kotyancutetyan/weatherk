@@ -258,7 +258,10 @@
       animation: avatar-dance 2s ease-in-out infinite;
       cursor: pointer;
       outline: none;
-      -webkit-tap-highlight-color: transparent;
+      -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .avatar-img:hover {
@@ -266,9 +269,10 @@
     }
 
     .avatar-img:focus,
-    .avatar-img:focus-visible {
-      outline: none;
-      box-shadow: none;
+    .avatar-img:focus-visible,
+    .avatar-img:active {
+      outline: none !important;
+      box-shadow: none !important;
     }
 
     @keyframes avatar-dance {
@@ -360,7 +364,7 @@
 
   <div class="avatar-block">
     <div class="avatar-bubble" id="complimentBubble"></div>
-    <img class="avatar-img" src="avatar.png" alt="Нажми" id="avatarImg" title="Нажми">
+    <img class="avatar-img" src="avatar.png" alt="Нажми" id="avatarImg" title="Нажми" tabindex="-1" draggable="false">
   </div>
 
   <div class="ascii-bg-wrap">
@@ -1105,6 +1109,11 @@
       // Убираем браузерный blue-focus при клике по картинке.
       avatarImg.blur();
       nextCompliment();
+    });
+
+    avatarImg.addEventListener('pointerdown', () => {
+      // На Android WebView иногда появляется tap/focus highlight до события click.
+      avatarImg.blur();
     });
 
     (function loadSavedCity() {
