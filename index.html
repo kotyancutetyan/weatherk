@@ -144,12 +144,24 @@
       user-select: none;
       cursor: pointer;
       opacity: 0.78;
+      outline: none;
+      box-shadow: none;
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+      touch-action: manipulation;
+      -webkit-user-select: none;
       transition: transform 120ms ease, opacity 120ms ease;
     }
 
     .theme-toggle:hover {
       opacity: 1;
       transform: scale(1.06);
+    }
+
+    .theme-toggle:active,
+    .theme-toggle:focus,
+    .theme-toggle:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
     }
 
     @keyframes refresh-spin {
@@ -288,6 +300,10 @@
       box-shadow: none !important;
     }
 
+    .avatar-img:active {
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+    }
+
     @keyframes avatar-dance {
       0%, 100% { transform: scaleX(-1) rotate(-3deg) scale(1); }
       25% { transform: scaleX(-1) rotate(2deg) scale(1.02); }
@@ -373,7 +389,7 @@
   </style>
 </head>
 <body>
-  <span id="themeToggle" class="theme-toggle" title="светлая тема" role="button" tabindex="-1">🌑</span>
+  <span id="themeToggle" class="theme-toggle" title="светлая тема" tabindex="-1">🌑</span>
 
   <div class="avatar-block">
     <div class="avatar-bubble" id="complimentBubble"></div>
@@ -1068,9 +1084,19 @@
       search();
     });
 
+    themeToggle.addEventListener('pointerdown', () => {
+      // Снимаем фокус сразу при тапе (Android WebView может рисовать рамку до click).
+      themeToggle.blur();
+    });
+
+    themeToggle.addEventListener('touchstart', () => {
+      themeToggle.blur();
+    }, { passive: true });
+
     themeToggle.addEventListener('click', () => {
       const isLight = document.body.classList.contains('light-theme');
       applyTheme(isLight ? 'dark' : 'light');
+      themeToggle.blur();
     });
 
     themeToggle.addEventListener('keydown', (e) => {
@@ -1146,6 +1172,14 @@
 
     avatarImg.addEventListener('focus', () => {
       // Если элемент всё-таки получил focus — сразу убираем, чтобы не показывать рамку.
+      avatarImg.blur();
+    });
+
+    avatarImg.addEventListener('pointerup', () => {
+      avatarImg.blur();
+    });
+
+    avatarImg.addEventListener('touchend', () => {
       avatarImg.blur();
     });
 
