@@ -457,15 +457,30 @@
       transition: color 280ms ease;
     }
 
+    .app-version {
+      position: fixed;
+      left: 0.7rem;
+      bottom: 0.45rem;
+      z-index: 12;
+      font-size: 9px;
+      color: var(--text-faint);
+      opacity: 0.38;
+      letter-spacing: 0.02em;
+      user-select: none;
+      pointer-events: none;
+      transition: color 280ms ease, opacity 280ms ease;
+    }
+
   </style>
 </head>
 <body>
+  <div class="app-version" id="appVersionLabel"></div>
   <span id="themeToggle" class="theme-toggle" title="светлая тема" tabindex="-1">🌑</span>
 
   <div class="scene-buttons" id="sceneButtons" aria-hidden="false">
+    <span class="scene-btn" id="sceneBtnReset" title="сброс" tabindex="-1" draggable="false">⟲</span>
     <span class="scene-btn" id="sceneBtnRain" title="дождь" tabindex="-1" draggable="false">🌧️</span>
     <span class="scene-btn" id="sceneBtnSun" title="солнце" tabindex="-1" draggable="false">☀️</span>
-    <span class="scene-btn" id="sceneBtnClouds" title="облачко" tabindex="-1" draggable="false">☁️</span>
   </div>
 
   <div class="avatar-block">
@@ -496,6 +511,9 @@
   <script src="config.js"></script>
   <script src="compliments.js"></script>
   <script>
+    // Версионирование: 0.MINOR.PATCH (пока ниже 1.0).
+    // MINOR: заметная новая фича/изменение UI, PATCH: точечный фикс.
+    const APP_VERSION = '0.9.0';
     const API_KEY = (typeof window !== 'undefined' && window.OPENWEATHER_API_KEY)
       ? String(window.OPENWEATHER_API_KEY).trim()
       : '';
@@ -961,6 +979,7 @@
     }
 
     const weatherLine = document.getElementById('weatherLine');
+    const appVersionLabel = document.getElementById('appVersionLabel');
     const cityInput = document.getElementById('cityInput');
     const favRow = document.getElementById('favRow');
     const refreshBtn = document.getElementById('refreshBtn');
@@ -994,6 +1013,7 @@
 
     resize();
     loadSavedTheme();
+    if (appVersionLabel) appVersionLabel.textContent = `v${APP_VERSION}`;
     initParticles();
     requestAnimationFrame(update);
     renderFavorites();
@@ -1324,9 +1344,9 @@
       search();
     });
 
+    const sceneBtnReset = document.getElementById('sceneBtnReset');
     const sceneBtnRain = document.getElementById('sceneBtnRain');
     const sceneBtnSun = document.getElementById('sceneBtnSun');
-    const sceneBtnClouds = document.getElementById('sceneBtnClouds');
 
     // Небольшой (но достаточно разнообразный) пул городов для подбора “по погоде”.
     // Чтобы не упираться в rate-limit API, при подборе делаем ограниченное число проверок.
@@ -1353,7 +1373,7 @@
 
     function setSceneBusy(busy) {
       sceneBusy = busy;
-      const btns = [sceneBtnRain, sceneBtnSun, sceneBtnClouds];
+      const btns = [sceneBtnReset, sceneBtnRain, sceneBtnSun];
       btns.forEach(b => {
         if (!b) return;
         b.style.opacity = busy ? '0.45' : '0.72';
@@ -1415,9 +1435,36 @@
       }, { passive: false });
     }
 
+    function resetToInitialScreen() {
+      forecastData = null;
+      cityInput.value = '';
+      if (cityTimeBadge) {
+        cityTimeBadge.textContent = '';
+        cityTimeBadge.style.display = 'none';
+      }
+      weatherLine.className = 'weather-line';
+      weatherLine.textContent = '';
+      document.getElementById('tempChartWrap').classList.remove('visible', 'loading');
+      document.getElementById('forecastDays').classList.remove('visible', 'loading');
+      document.getElementById('tempChart').innerHTML = '';
+      document.getElementById('tempChartNums').innerHTML = '';
+      document.getElementById('forecastDays').innerHTML = '';
+      setScene('default');
+      renderFavorites();
+    }
+
+    if (sceneBtnReset) {
+      sceneBtnReset.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const ae = document.activeElement;
+        if (ae && ae.blur) ae.blur();
+        resetToInitialScreen();
+      }, { passive: false });
+    }
+
     bindSceneButton(sceneBtnRain, 'rain');
     bindSceneButton(sceneBtnSun, 'clear');
-    bindSceneButton(sceneBtnClouds, 'default');
 
     let themeToggleLastAt = 0;
     function toggleThemeOnce() {
