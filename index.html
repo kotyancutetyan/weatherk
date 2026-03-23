@@ -578,12 +578,10 @@
 
     function createCloud(fill) {
       const base = CLOUD_TEMPLATES[rndInt(CLOUD_TEMPLATES.length)];
-      const cloudChars = ['.', 'o', '°', '~', '`', '\''];
       const shape = base.map(line => line.split('').map(ch => {
         if (ch === ' ') return ' ';
-        // Оставляем контур шаблона, но слегка "шумим" символы для живого вида.
-        if (ch === '-' || ch === '_' || ch === '`') return ch;
-        return cloudChars[rndInt(cloudChars.length)];
+        // Облака рендерим эмодзи-символом.
+        return '☁';
       }).join(''));
       const w = shape[0].length;
       const h = shape.length;
@@ -726,15 +724,21 @@
     }
 
     function drawCloudParticle(p) {
-      ctx.fillStyle = p.shade;
+      // Для облаков используем emoji-шрифт, иначе на некоторых устройствах
+      // символ может отображаться как моноширинный "ASCII-вид".
+      ctx.save();
+      ctx.font = '11px "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif';
       for (let dy = 0; dy < p.shape.length; dy++) {
         for (let dx = 0; dx < p.shape[dy].length; dx++) {
           const ch = p.shape[dy][dx];
           if (ch !== ' ') {
-            ctx.fillText(ch, (p.x + dx) * CHAR_W, (p.y + dy + 1) * CHAR_H);
+            // Прореживаем точки, чтобы не превращать облако в плотный ковёр.
+            if (((dx + dy) % 2) !== 0) continue;
+            ctx.fillText('☁️', (p.x + dx) * CHAR_W, (p.y + dy + 1) * CHAR_H);
           }
         }
       }
+      ctx.restore();
     }
 
     function drawRainParticle(p) {
