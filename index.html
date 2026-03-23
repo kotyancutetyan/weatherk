@@ -512,6 +512,23 @@
     const SNOW_COLORS = ['#555555', '#656565', '#757575'];
     const GRASS_COLORS = ['#1a2e1a', '#253525', '#2d3d2d', '#354535'];
     const GRASS_CHARS = ['|', '/', '\\', ',', "'", '`', '.', ';'];
+    const CLOUD_TEMPLATES = [
+      [
+        '   .--.     .--.   ',
+        '.-(    )---(    )-.',
+        '(___.-`  .  `-.___)'
+      ],
+      [
+        '    .-~~-.   .-~~-. ',
+        '.--(      )-(      )',
+        '   `-.__.-`  `-.__.-'
+      ],
+      [
+        '   .--.    .--.   ',
+        '.-(    )--(    )-.',
+        ' (__.-`  .  `-.__)'
+      ]
+    ];
 
     const CHAR_W = 6;
     const CHAR_H = 10;
@@ -544,6 +561,8 @@
     let transitionState = { phase: 'idle', target: null };
     const FADE_SPEED = 0.045;
     let lightningFlash = 0;
+    let sceneCloudCover = 55; // 0..100 по данным API clouds.all
+    let sceneIsDay = true;
 
     function getSkyColor(type) {
       if (type === 'night') return '#0f1018';
@@ -558,27 +577,56 @@
     }
 
     function createCloud(fill) {
-      const w = 6 + rndInt(8);
-      const h = 2 + rndInt(2);
-      const chars = ['.', "'", '~', '(', ')', '-', 'o', ','];
-      const shape = [];
-      for (let dy = 0; dy < h; dy++) {
-        let row = '';
-        for (let dx = 0; dx < w; dx++) {
-          const d = Math.abs(dx - w/2) / (w/2) + Math.abs(dy - h/2) / (h/2);
-          row += (rnd(1) > d * 0.6) ? chars[rndInt(chars.length)] : ' ';
-        }
-        shape.push(row);
-      }
+      const base = CLOUD_TEMPLATES[rndInt(CLOUD_TEMPLATES.length)];
+      const cloudChars = ['.', 'o', '°', '~', '`', '\''];
+      const shape = base.map(line => line.split('').map(ch => {
+        if (ch === ' ') return ' ';
+        // Оставляем контур шаблона, но слегка "шумим" символы для живого вида.
+        if (ch === '-' || ch === '_' || ch === '`') return ch;
+        return cloudChars[rndInt(cloudChars.length)];
+      }).join(''));
+      const w = shape[0].length;
+      const h = shape.length;
       const c = cols();
       const r = rows();
+      const speedFactor = 0.75 + (100 - sceneCloudCover) / 180;
       return {
         x: fill ? -w + rnd(c + w) : -w - rnd(c),
-        y: rnd(Math.max(1, r - h - 1)),
+        y: rnd(Math.max(1, r * 0.45 - h)),
         w, h, shape,
-        vx: 0.12 + rnd(0.06),
+        vx: (0.07 + rnd(0.05)) * speedFactor,
         shade: CLOUD_COLORS[rndInt(CLOUD_COLORS.length)]
       };
+    }
+
+    function getCloudTargetCount() {
+      // От ~5 облаков при 0% до ~20 облаков при 100%
+      return Math.max(4, Math.round(5 + sceneCloudCover * 0.15));
+    }
+
+    function getCloudSpawnEvery() {
+      // Чем облачнее, тем чаще "досоздаём" облака.
+      return Math.max(16, Math.round(55 - sceneCloudCover * 0.35));
+    }
+
+    function drawSoftSun() {
+      if (!sceneIsDay) return;
+      // Солнце приглушаем при высокой облачности.
+      const vis = Math.max(0, 1 - sceneCloudCover / 95);
+      if (vis < 0.08) return;
+
+      const cx = Math.max(8, cols() - 20);
+      const cy = 6;
+      const core = ['  .-.  ', ' (   ) ', '  `-`  '];
+      const rays = ['  \\ | /  ', ' -- ☼ -- ', '  / | \\  '];
+
+      ctx.save();
+      ctx.globalAlpha = transitionAlpha * (0.2 + vis * 0.35); // неяркое солнце
+      ctx.fillStyle = SUN_COLORS[3];
+      rays.forEach((line, i) => ctx.fillText(line, (cx - 1) * CHAR_W, (cy + i) * CHAR_H));
+      ctx.globalAlpha = transitionAlpha * (0.45 + vis * 0.35);
+      core.forEach((line, i) => ctx.fillText(line, cx * CHAR_W, (cy + i) * CHAR_H));
+      ctx.restore();
     }
 
     function createRainDrop(fill) {
@@ -658,7 +706,8 @@
       const r = rows();
 
       if (sceneType === 'clouds') {
-        for (let i = 0; i < 12 + rndInt(4); i++) particles.push(createCloud(true));
+        const n = getCloudTargetCount();
+        for (let i = 0; i < n; i++) particles.push(createCloud(true));
       } else if (sceneType === 'rain') {
         for (let i = 0; i < 60 + rndInt(20); i++) particles.push(createRainDrop(true));
       } else if (sceneType === 'snow') {
@@ -708,6 +757,7 @@
       ctx.fillRect(0, 0, W, H);
 
       if (sceneType === 'clouds') {
+        drawSoftSun();
         particles.forEach(drawCloudParticle);
       } else if (sceneType === 'rain') {
         particles.forEach(drawRainParticle);
@@ -717,6 +767,7 @@
           ctx.fillText(p.ch, p.x * CHAR_W, (p.y + 1) * CHAR_H);
         });
       } else if (sceneType === 'stars') {
+        drawSoftSun();
         particles.forEach(p => {
           if (Math.sin(p.twinkle + frameCount * 0.02) > 0.2) {
             ctx.fillStyle = p.shade;
@@ -816,7 +867,12 @@
           p.x += p.vx;
           if (p.x > c) Object.assign(p, createCloud());
         });
-        if (frameCount % 40 === 0) particles.push(createCloud(false));
+        const target = getCloudTargetCount();
+        if (particles.length > target + 2) {
+          particles.splice(0, particles.length - target);
+        } else if (particles.length < target && frameCount % getCloudSpawnEvery() === 0) {
+          particles.push(createCloud(false));
+        }
       } else if (sceneType === 'rain') {
         particles.forEach(p => {
           p.y += p.vy;
@@ -883,6 +939,14 @@
     }
 
     function setScene(cond, meta = {}) {
+      if (meta && Number.isFinite(Number(meta.clouds))) {
+        sceneCloudCover = Math.max(0, Math.min(100, Number(meta.clouds)));
+      }
+      if (meta && meta.dt != null && meta.tz != null) {
+        sceneIsDay = !isNightAt(meta.dt, meta.tz);
+      } else {
+        sceneIsDay = true;
+      }
       const key = sceneKeyFromCondition(cond, meta.weather, meta.dt, meta.tz);
       requestSceneChange(key);
     }
@@ -1211,7 +1275,8 @@
         setScene(cond, {
           weather: now.weather[0],
           dt: now.dt,
-          tz: data.city.timezone
+          tz: data.city.timezone,
+          clouds: now.clouds && now.clouds.all
         });
         renderForecastBlocks();
         renderFavorites();
