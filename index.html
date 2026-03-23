@@ -157,6 +157,38 @@
       transition: transform 120ms ease, opacity 120ms ease;
     }
 
+    .ui-scale-toggle {
+      position: fixed;
+      top: 0.85rem;
+      right: 3.05rem;
+      z-index: 20;
+      font-size: 15px;
+      line-height: 1;
+      min-width: 1.5em;
+      text-align: center;
+      user-select: none;
+      cursor: pointer;
+      opacity: 0.78;
+      outline: none;
+      box-shadow: none;
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      transition: transform 120ms ease, opacity 120ms ease;
+    }
+
+    .ui-scale-toggle:hover {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+
+    .ui-scale-toggle:active,
+    .ui-scale-toggle:focus,
+    .ui-scale-toggle:focus-visible {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
     .theme-toggle:hover {
       opacity: 1;
       transform: scale(1.06);
@@ -471,10 +503,32 @@
       transition: color 280ms ease, opacity 280ms ease;
     }
 
+    /* Крупный режим интерфейса: увеличиваем шрифт и иконки,
+       но сохраняем геометрию без ломки макета. */
+    body.large-ui .window {
+      min-width: 320px;
+      width: min(95vw, 400px);
+      padding: 1.35rem 1.65rem;
+    }
+
+    body.large-ui .search-row input { font-size: 15px; }
+    body.large-ui .refresh-btn { font-size: 15px; padding: 0.4rem 0.48rem; }
+    body.large-ui .weather-line { font-size: 14px; }
+    body.large-ui .fav-row { font-size: 12px; }
+    body.large-ui .city-time-badge { font-size: 13px; }
+    body.large-ui .spark-temps { font-size: 12px; }
+    body.large-ui .spark-times { font-size: 10px; }
+    body.large-ui .theme-toggle { font-size: 26px; }
+    body.large-ui .ui-scale-toggle { font-size: 18px; right: 3.4rem; }
+    body.large-ui .scene-btn { font-size: 24px; }
+    body.large-ui .avatar-img { width: 188px; height: 188px; }
+    body.large-ui .avatar-bubble { font-size: 13px; max-width: 230px; }
+
   </style>
 </head>
 <body>
   <div class="app-version" id="appVersionLabel"></div>
+  <span id="uiScaleToggle" class="ui-scale-toggle" title="крупный шрифт" tabindex="-1">A</span>
   <span id="themeToggle" class="theme-toggle" title="светлая тема" tabindex="-1">🌑</span>
 
   <div class="scene-buttons" id="sceneButtons" aria-hidden="false">
@@ -513,7 +567,7 @@
   <script>
     // Версионирование: 0.MINOR.PATCH (пока ниже 1.0).
     // MINOR: заметная новая фича/изменение UI, PATCH: точечный фикс.
-    const APP_VERSION = '0.10.1';
+    const APP_VERSION = '0.10.2';
     const API_KEY = (typeof window !== 'undefined' && window.OPENWEATHER_API_KEY)
       ? String(window.OPENWEATHER_API_KEY).trim()
       : '';
@@ -984,10 +1038,12 @@
     const favRow = document.getElementById('favRow');
     const refreshBtn = document.getElementById('refreshBtn');
     const themeToggle = document.getElementById('themeToggle');
+    const uiScaleToggle = document.getElementById('uiScaleToggle');
     const cityTimeBadge = document.getElementById('cityTimeBadge');
     const FAV_KEY = 'weatherFavorites';
     const LAST_CITY_KEY = 'weatherLastCity';
     const THEME_KEY = 'weatherTheme';
+    const UI_SCALE_KEY = 'weatherUiScale';
     const CITY_TZ_KEY = 'weatherCityTimezones';
     let lastCity = '';
     let forecastData = null;
@@ -1024,8 +1080,30 @@
       }
     }
 
+    function applyUiScale(mode, save = true) {
+      const next = mode === 'large' ? 'large' : 'normal';
+      document.body.classList.toggle('large-ui', next === 'large');
+      if (uiScaleToggle) {
+        uiScaleToggle.textContent = next === 'large' ? 'Aa' : 'A';
+        uiScaleToggle.title = next === 'large' ? 'обычный шрифт' : 'крупный шрифт';
+      }
+      if (save) {
+        try { localStorage.setItem(UI_SCALE_KEY, next); } catch (_) {}
+      }
+    }
+
+    function loadSavedUiScale() {
+      try {
+        const saved = localStorage.getItem(UI_SCALE_KEY);
+        applyUiScale(saved === 'large' ? 'large' : 'normal', false);
+      } catch (_) {
+        applyUiScale('normal', false);
+      }
+    }
+
     resize();
     loadSavedTheme();
+    loadSavedUiScale();
     if (appVersionLabel) appVersionLabel.textContent = `v${APP_VERSION}`;
     syncNativeWidgetPrefs(lastCity);
     initParticles();
@@ -1460,6 +1538,16 @@
         const ae = document.activeElement;
         if (ae && ae.blur) ae.blur();
         setScene('thunder');
+      }, { passive: false });
+    }
+
+    if (uiScaleToggle) {
+      uiScaleToggle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const large = document.body.classList.contains('large-ui');
+        applyUiScale(large ? 'normal' : 'large');
+        uiScaleToggle.blur();
       }, { passive: false });
     }
 

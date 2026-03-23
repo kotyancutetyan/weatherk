@@ -4,38 +4,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#00000000"
-    android:gravity="top|center_horizontal"
+    android:gravity="center_horizontal|bottom"
     android:orientation="vertical"
-    android:padding="4dp">
-
-    <TextView
-        android:id="@+id/widgetAvatarCity"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:gravity="center"
-        android:maxLines="1"
-        android:text="Москва"
-        android:textColor="#E6FFFFFF"
-        android:textSize="10sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widgetAvatarWeather"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:gravity="center"
-        android:maxLines="1"
-        android:text="🌤️ · 12°C"
-        android:textColor="#D0FFFFFF"
-        android:textSize="10sp"
-        android:layout_marginBottom="4dp" />
+    android:padding="2dp">
 
     <ImageView
         android:id="@+id/widgetAvatarImage"
-        android:layout_width="74dp"
-        android:layout_height="112dp"
+        android:layout_width="match_parent"
+        android:layout_height="122dp"
         android:adjustViewBounds="true"
         android:contentDescription="@string/widget_avatar_name"
         android:scaleType="fitCenter"
@@ -47,7 +23,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:gravity="center"
-        android:maxLines="2"
+        android:maxLines="3"
         android:text="Катюша, ты прекрасная!"
         android:textColor="#CCFFFFFF"
         android:textSize="9sp"

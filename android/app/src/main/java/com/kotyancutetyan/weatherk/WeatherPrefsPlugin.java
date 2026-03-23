@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.ComponentName;
+import android.content.Intent;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -36,8 +37,12 @@ public class WeatherPrefsPlugin extends Plugin {
             int[] ids = manager.getAppWidgetIds(new ComponentName(context2, AvatarWidgetProvider.class));
             if (ids != null && ids.length > 0) {
                 new AvatarWidgetProvider().onUpdate(context2, manager, ids);
+                Intent i = new Intent(context2, AvatarWidgetProvider.class);
+                i.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+                i.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
+                context2.sendBroadcast(i);
             }
-        } catch (_) {
+        } catch (Exception ignored) {
             // ignore
         }
 
