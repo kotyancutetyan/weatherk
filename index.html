@@ -169,6 +169,41 @@
       box-shadow: none !important;
     }
 
+    .scene-buttons {
+      position: fixed;
+      top: 3.0rem;
+      right: 1rem;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      user-select: none;
+    }
+
+    .scene-btn {
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0.72;
+      transition: transform 120ms ease, opacity 120ms ease;
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0) !important;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      outline: none;
+      box-shadow: none;
+      transform: translateZ(0);
+    }
+
+    .scene-btn:hover {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+
+    .scene-btn:active {
+      opacity: 0.95;
+    }
+
     @keyframes refresh-spin {
       to { transform: rotate(360deg); }
     }
@@ -416,6 +451,13 @@
 </head>
 <body>
   <span id="themeToggle" class="theme-toggle" title="светлая тема" tabindex="-1">🌑</span>
+
+  <div class="scene-buttons" id="sceneButtons" aria-hidden="false">
+    <span class="scene-btn" id="sceneBtnRain" title="дождь" tabindex="-1" draggable="false">🌧️</span>
+    <span class="scene-btn" id="sceneBtnSun" title="солнце" tabindex="-1" draggable="false">☀️</span>
+    <span class="scene-btn" id="sceneBtnThunder" title="гроза" tabindex="-1" draggable="false">⛈️</span>
+    <span class="scene-btn" id="sceneBtnClouds" title="облачко" tabindex="-1" draggable="false">☁️</span>
+  </div>
 
   <div class="avatar-block">
     <div class="avatar-bubble" id="complimentBubble"></div>
@@ -1109,6 +1151,101 @@
       if (!cityInput.value.trim() && lastCity) cityInput.value = lastCity;
       search();
     });
+
+    const sceneBtnRain = document.getElementById('sceneBtnRain');
+    const sceneBtnSun = document.getElementById('sceneBtnSun');
+    const sceneBtnThunder = document.getElementById('sceneBtnThunder');
+    const sceneBtnClouds = document.getElementById('sceneBtnClouds');
+
+    // Небольшой (но достаточно разнообразный) пул городов для подбора “по погоде”.
+    // Чтобы не упираться в rate-limit API, при подборе делаем ограниченное число проверок.
+    const SCENE_CITY_POOL = [
+      'Москва', 'Санкт-Петербург', 'Краснодар', 'Екатеринбург', 'Новосибирск', 'Казань', 'Нижний Новгород',
+      'Самара', 'Челябинск', 'Ростов-на-Дону', 'Уфа', 'Пермь', 'Волгоград', 'Воронеж', 'Саратов',
+      'Красноярск', 'Иркутск', 'Владивосток', 'Сочи', 'Калининград', 'Тюмень', 'Омск', 'Барнаул',
+      'Томск', 'Астрахань', 'Ярославль', 'Пенза', 'Кемерово', 'Хабаровск', 'Мурманск', 'Улан-Удэ',
+      'Хельсинки', 'Осло', 'Стокгольм', 'Копенгаген', 'Берлин', 'Париж', 'Лондон', 'Мадрид', 'Рим', 'Афины',
+      'Прага', 'Варшава', 'Будапешт', 'Амстердам', 'Брюссель', 'Вена', 'Дублин', 'Истанбул', 'Каир', 'Тегеран',
+      'Дубай', 'Рияд', 'Тель-Авив', 'Нью-Йорк', 'Лос-Анджелес', 'Чикаго', 'Торонто', 'Мехико-Сити', 'Сан-Паулу',
+      'Буэнос-Айрес', 'Мадрид', 'Сидней', 'Мельбурн', 'Токио', 'Сеул', 'Пекин', 'Шанхай', 'Гонконг', 'Сингапур',
+      'Бангкок', 'Ханой', 'Джакарта', 'Манила', 'Мумбаи', 'Дели', 'Карачи', 'Коломбо', 'Дакка'
+    ];
+
+    function shuffleInPlace(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    let sceneBusy = false;
+
+    function setSceneBusy(busy) {
+      sceneBusy = busy;
+      const btns = [sceneBtnRain, sceneBtnSun, sceneBtnThunder, sceneBtnClouds];
+      btns.forEach(b => {
+        if (!b) return;
+        b.style.opacity = busy ? '0.45' : '0.72';
+        b.style.pointerEvents = busy ? 'none' : 'auto';
+      });
+    }
+
+    async function findRandomCityByCondition(targetCond) {
+      const pool = SCENE_CITY_POOL.slice();
+      shuffleInPlace(pool);
+      const maxChecks = 12;
+
+      for (let i = 0; i < Math.min(maxChecks, pool.length); i++) {
+        const candidate = pool[i];
+        try {
+          const w = await fetchWeather({ q: candidate });
+          const cond = (w && w.weather && w.weather[0]) ? getCondition(w.weather[0]) : '';
+          if (cond === targetCond) {
+            return (w && w.name) ? w.name : candidate;
+          }
+        } catch (_) {
+          // игнорируем кандидатов, по которым запрос упал
+        }
+      }
+
+      // Фолбэк: если не нашли подходящее за лимит запросов — просто случайный город.
+      const fallback = pool[Math.floor(Math.random() * pool.length)] || 'Москва';
+      return fallback;
+    }
+
+    async function runScene(targetCond) {
+      if (sceneBusy) return;
+      setSceneBusy(true);
+      try {
+        if (!API_KEY) {
+          setWeather('error', 'Скопируй config.example.js → config.js и укажи OPENWEATHER_API_KEY (openweathermap.org/api)');
+          return;
+        }
+
+        setWeather('loading', 'Подбираю город...');
+        const city = await findRandomCityByCondition(targetCond);
+        cityInput.value = city;
+        await search();
+      } finally {
+        setSceneBusy(false);
+      }
+    }
+
+    function bindSceneButton(btn, cond) {
+      if (!btn) return;
+      btn.addEventListener('pointerdown', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const ae = document.activeElement;
+        if (ae && ae.blur) ae.blur();
+        await runScene(cond);
+      }, { passive: false });
+    }
+
+    bindSceneButton(sceneBtnRain, 'rain');
+    bindSceneButton(sceneBtnSun, 'clear');
+    bindSceneButton(sceneBtnThunder, 'thunder');
+    bindSceneButton(sceneBtnClouds, 'default');
 
     let themeToggleLastAt = 0;
     function toggleThemeOnce() {
